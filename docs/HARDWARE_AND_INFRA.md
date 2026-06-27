@@ -84,6 +84,10 @@ The checker summarizes reward variance, nonzero component rates, and teacher
 weight movement. Treat a flat all-zero non-brevity reward profile as a signal to
 do an SFT harness warmup before spending more GRPO budget.
 
+Reward logs separate `primary_reward`, `aux_reward_weighted`, and
+`total_reward`. Use that split in plots and reports so format progress is not
+mistaken for task success.
+
 ## Reproducibility checklist
 
 - Save dataset generation seed.

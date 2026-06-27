@@ -1,3 +1,5 @@
+import json
+
 from rtw_llm.teacher import RTWTeacher, TeacherConfig
 from rtw_llm.rewards import RTWRewardManager
 
@@ -24,3 +26,23 @@ def test_static_teacher_constant():
 def test_reward_manager_has_callable_name_for_trl_logging():
     manager = RTWRewardManager(RTWTeacher(TeacherConfig(strategy="static")))
     assert manager.__name__ == "rtw_reward"
+
+
+def test_reward_manager_logs_primary_auxiliary_and_total_reward(tmp_path):
+    log_path = tmp_path / "reward_components.jsonl"
+    teacher = RTWTeacher(TeacherConfig(strategy="static", init_weight=0.2))
+    manager = RTWRewardManager(teacher, log_path=str(log_path))
+    rewards = manager.score_batch(
+        ["<answer>(1+2)*3</answer>", "<answer>(1+2)*3"],
+        [
+            {"id": "ok", "numbers": [1, 2, 3], "target": 9, "allowed_ops": ["+", "-", "*"]},
+            {"id": "partial", "numbers": [1, 2, 3], "target": 9, "allowed_ops": ["+", "-", "*"]},
+        ],
+    )
+    rows = [json.loads(line) for line in log_path.read_text().splitlines()]
+    assert len(rows) == 2
+    assert rewards == [rows[0]["total_reward"], rows[1]["total_reward"]]
+    assert rows[0]["primary_reward"] == 1.0
+    assert rows[0]["aux_reward_weighted"] > 0.0
+    assert rows[0]["total_reward"] == rows[0]["primary_reward_weighted"] + rows[0]["aux_reward_weighted"]
+    assert rows[0]["reward_batch_has_variance"]

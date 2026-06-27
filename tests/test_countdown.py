@@ -4,6 +4,7 @@ from rtw_llm.countdown import (
     answer_tag_signals,
     extract_answer,
     random_solvable_task,
+    reward_breakdown,
     verify_completion,
     verify_expression,
 )
@@ -40,6 +41,15 @@ def test_verify_correct_expression():
     comps = result.to_components()
     assert comps["exact_correct"] == 1.0
     assert comps["uses_allowed_numbers"] == 1.0
+
+
+def test_reward_breakdown_splits_primary_and_auxiliary_reward():
+    components = {"correct": 1.0, "format": 0.5, "brevity": 1.0}
+    breakdown = reward_breakdown(components, {"format": 0.2, "brevity": 0.1})
+    assert breakdown["primary_reward"] == 1.0
+    assert breakdown["primary_reward_weighted"] == 1.0
+    assert breakdown["aux_reward_weighted"] == 0.2
+    assert breakdown["total_reward"] == 1.2
 
 
 def test_reject_invented_constant():

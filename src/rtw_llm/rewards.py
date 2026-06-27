@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .countdown import score_completion, verify_completion
+from .countdown import reward_breakdown, score_completion, verify_completion
 from .teacher import RTWTeacher
 
 
@@ -41,6 +41,7 @@ class RTWRewardManager:
         self.teacher = teacher
         self.primary_weight = primary_weight
         self.log_path = Path(log_path) if log_path else None
+        self.batch_index = 0
         if self.log_path:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             self.log_path.write_text("")
@@ -59,13 +60,19 @@ class RTWRewardManager:
                 aux_weights=weights,
                 primary_weight=self.primary_weight,
             )
+            breakdown = reward_breakdown(components, weights, self.primary_weight)
             rewards.append(total)
             component_records.append(components)
             log_records.append(
                 {
                     "id": example.get("id"),
                     "difficulty": example.get("difficulty"),
+                    "reward_batch_index": self.batch_index,
                     "reward": total,
+                    "primary_reward": breakdown["primary_reward"],
+                    "primary_reward_weighted": breakdown["primary_reward_weighted"],
+                    "aux_reward_weighted": breakdown["aux_reward_weighted"],
+                    "total_reward": breakdown["total_reward"],
                     "weights": weights,
                     "components": components,
                     "expression": result.expression,
@@ -75,8 +82,15 @@ class RTWRewardManager:
                 }
             )
 
+        reward_std = _population_std(rewards)
+        for rec in log_records:
+            rec["reward_batch_size"] = len(rewards)
+            rec["reward_batch_reward_std"] = reward_std
+            rec["reward_batch_has_variance"] = reward_std > 1e-9
+
         self.teacher.update(component_records)
         self._log(log_records)
+        self.batch_index += 1
         return rewards
 
     def __call__(self, completions: list[Any], **kwargs: Any) -> list[float]:
@@ -107,6 +121,14 @@ def _get_i(value: Any, i: int) -> Any:
     if isinstance(value, (list, tuple)):
         return value[i]
     return value
+
+
+def _population_std(values: list[float]) -> float:
+    if len(values) < 2:
+        return 0.0
+    mean = sum(values) / len(values)
+    variance = sum((value - mean) ** 2 for value in values) / len(values)
+    return float(variance**0.5)
 
 
 def metrics_for_completion(completion: str, example: dict[str, Any]) -> dict[str, Any]:

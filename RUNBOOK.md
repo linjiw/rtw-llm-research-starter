@@ -76,6 +76,20 @@ some non-brevity component is occasionally nonzero, and format reward has some
 variance. If rewards stay flat and all non-brevity components remain zero, stop
 GRPO and run the SFT harness warmup below.
 
+The health report should explicitly show:
+
+- `open_tag_rate`
+- `close_tag_rate`
+- `extractable_span_rate`
+- `parseable_expression_rate`
+- `allowed_numbers_rate`
+- `allowed_ops_rate`
+- `exact_correct_rate`
+- `tag_only_rate`
+- `parseable_but_wrong_rate`
+- `correct_given_parseable`
+- `reward_variance_nonzero_fraction`
+
 ## 2b. SFT harness warmup fallback
 
 Use this if the CUDA smoke has no useful reward support.
@@ -149,3 +163,15 @@ done
 ```bash
 python scripts/04_analyze_results.py --run_dir outputs/grpo_adaptive_seed0
 ```
+
+## 6. v0.5 report
+
+After the CUDA smoke and first adaptive/static pilot, fill in:
+
+```bash
+docs/v05_cuda_bootstrap_report.md
+```
+
+Keep primary reward, weighted auxiliary reward, and total reward separate in the
+report so improvements in task correctness are not conflated with harness-only
+progress.

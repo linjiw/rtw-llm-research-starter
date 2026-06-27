@@ -13,6 +13,27 @@ from rtw_llm.analysis import load_jsonl_df
 
 
 IGNORED_NONZERO_COMPONENTS = {"brevity"}
+EPS = 1e-12
+
+
+def component_mean(components: pd.DataFrame, name: str, fallback: str | None = None) -> float:
+    if name in components:
+        return float(components[name].mean())
+    if fallback and fallback in components:
+        return float(components[fallback].mean())
+    return 0.0
+
+
+def component_series(
+    components: pd.DataFrame,
+    name: str,
+    fallback: str | None = None,
+) -> pd.Series:
+    if name in components:
+        return components[name]
+    if fallback and fallback in components:
+        return components[fallback]
+    return pd.Series([0.0] * len(components), index=components.index)
 
 
 def summarize_reward_components(path: Path) -> tuple[dict, list[str]]:
@@ -28,6 +49,41 @@ def summarize_reward_components(path: Path) -> tuple[dict, list[str]]:
     component_stds = components.std(numeric_only=True).fillna(0.0).to_dict()
     component_nonzero = (components > 0).mean(numeric_only=True).to_dict()
     reward_std = float(df["reward"].std()) if len(df) > 1 else 0.0
+    split_reward_summary = {}
+    for key in ["primary_reward", "primary_reward_weighted", "aux_reward_weighted", "total_reward"]:
+        if key in df:
+            split_reward_summary[f"{key}_mean"] = float(df[key].mean())
+            split_reward_summary[f"{key}_std"] = float(df[key].std()) if len(df) > 1 else 0.0
+
+    open_tag_rate = component_mean(components, "contains_open_answer_tag")
+    close_tag_rate = component_mean(components, "contains_close_answer_tag")
+    extractable_span_rate = component_mean(components, "has_extractable_answer_span", "format")
+    parseable_expression_rate = component_mean(components, "expression_parseable", "parse_ok")
+    allowed_numbers_rate = component_mean(components, "uses_allowed_numbers", "uses_numbers")
+    allowed_ops_rate = component_mean(components, "uses_allowed_ops", "allowed_ops")
+    exact_correct_rate = component_mean(components, "exact_correct", "correct")
+    tag_only_rate = extractable_span_rate - parseable_expression_rate
+    span_series = component_series(components, "has_extractable_answer_span", "format")
+    parseable_series = component_series(components, "expression_parseable", "parse_ok")
+    tag_only_observed_rate = float(
+        ((span_series > 0) & (parseable_series == 0)).mean()
+        if len(components)
+        else 0.0
+    )
+    parseable_but_wrong_rate = parseable_expression_rate - exact_correct_rate
+    correct_given_parseable = exact_correct_rate / max(parseable_expression_rate, EPS)
+
+    if "reward_batch_has_variance" in df:
+        reward_variance_nonzero_fraction = float(
+            df.groupby("reward_batch_index")["reward_batch_has_variance"].max().mean()
+            if "reward_batch_index" in df
+            else df["reward_batch_has_variance"].mean()
+        )
+    elif "reward_batch_index" in df:
+        batch_stds = df.groupby("reward_batch_index")["reward"].std().fillna(0.0)
+        reward_variance_nonzero_fraction = float((batch_stds > 1e-9).mean())
+    else:
+        reward_variance_nonzero_fraction = float(reward_std > 1e-9)
 
     components_with_variance = sorted(
         name for name, value in component_stds.items() if float(value) > 1e-9
@@ -52,6 +108,21 @@ def summarize_reward_components(path: Path) -> tuple[dict, list[str]]:
             "n": int(len(df)),
             "reward_mean": float(df["reward"].mean()),
             "reward_std": reward_std,
+            **split_reward_summary,
+            "diagnostic_ratios": {
+                "open_tag_rate": open_tag_rate,
+                "close_tag_rate": close_tag_rate,
+                "extractable_span_rate": extractable_span_rate,
+                "parseable_expression_rate": parseable_expression_rate,
+                "allowed_numbers_rate": allowed_numbers_rate,
+                "allowed_ops_rate": allowed_ops_rate,
+                "exact_correct_rate": exact_correct_rate,
+                "tag_only_rate": tag_only_rate,
+                "tag_only_observed_rate": tag_only_observed_rate,
+                "parseable_but_wrong_rate": parseable_but_wrong_rate,
+                "correct_given_parseable": correct_given_parseable,
+                "reward_variance_nonzero_fraction": reward_variance_nonzero_fraction,
+            },
             "component_means": {k: float(v) for k, v in component_means.items()},
             "component_stds": {k: float(v) for k, v in component_stds.items()},
             "component_nonzero_rates": {k: float(v) for k, v in component_nonzero.items()},
@@ -75,6 +146,14 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
     moving = sorted(name for name, value in deltas.items() if float(value) > 1e-9)
     min_weight = float(weights.min(numeric_only=True).min())
     max_weight = float(weights.max(numeric_only=True).max())
+    per_component = {
+        column: {
+            "min": float(weights[column].min()),
+            "max": float(weights[column].max()),
+            "mean": float(weights[column].mean()),
+        }
+        for column in weights.columns
+    }
 
     issues = []
     if len(weights) > 1 and not moving:
@@ -93,6 +172,7 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
             "moving_weights": moving,
             "min_weight": min_weight,
             "max_weight": max_weight,
+            "per_component": per_component,
         },
         issues,
     )

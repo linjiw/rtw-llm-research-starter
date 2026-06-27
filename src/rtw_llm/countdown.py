@@ -263,11 +263,27 @@ def score_completion(
     """Return total reward, components, and verification details."""
     result = verify_completion(completion, example)
     components = result.to_components()
-    weights = aux_weights or {}
-    total = primary_weight * components["correct"]
-    for key, weight in weights.items():
-        total += float(weight) * float(components.get(key, 0.0))
-    return float(total), components, result
+    breakdown = reward_breakdown(components, aux_weights, primary_weight)
+    return breakdown["total_reward"], components, result
+
+
+def reward_breakdown(
+    components: dict[str, float],
+    aux_weights: dict[str, float] | None = None,
+    primary_weight: float = 1.0,
+) -> dict[str, float]:
+    """Split reward into primary, weighted auxiliary, and total terms."""
+    primary_reward = float(components.get("correct", 0.0))
+    primary_reward_weighted = float(primary_weight) * primary_reward
+    aux_reward_weighted = 0.0
+    for key, weight in (aux_weights or {}).items():
+        aux_reward_weighted += float(weight) * float(components.get(key, 0.0))
+    return {
+        "primary_reward": primary_reward,
+        "primary_reward_weighted": primary_reward_weighted,
+        "aux_reward_weighted": float(aux_reward_weighted),
+        "total_reward": float(primary_reward_weighted + aux_reward_weighted),
+    }
 
 
 # ------------------------- Synthetic task generation -------------------------
