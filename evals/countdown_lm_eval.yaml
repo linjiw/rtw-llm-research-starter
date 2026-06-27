@@ -1,0 +1,19 @@
+# Sketch for turning this dataset into an lm-evaluation-harness YAML task.
+# The local verifier is Python-based, so the main eval path in this repo is scripts/03_eval.py.
+# Use this file as a starting point if you add a custom lm_eval task wrapper.
+task: rtw_countdown
+output_type: generate_until
+dataset_path: json
+dataset_kwargs:
+  data_files:
+    test: data/countdown/test_in_dist.jsonl
+test_split: test
+doc_to_text: "{{prompt_high}}"
+doc_to_target: "{{solution}}"
+metric_list:
+  - metric: exact_match
+    aggregation: mean
+    higher_is_better: true
+generation_kwargs:
+  until: []
+  max_gen_toks: 256

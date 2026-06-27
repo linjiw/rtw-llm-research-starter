@@ -1,0 +1,47 @@
+project: rtw-llm-countdown
+seed: 42
+model:
+  base: Qwen/Qwen2.5-0.5B-Instruct
+  adapter: null
+  use_lora: true
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.05
+training:
+  method: grpo
+  max_steps: 300
+  learning_rate: 5.0e-6
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 8
+  num_generations: 4
+  max_prompt_length: 768
+  max_completion_length: 256
+reward:
+  primary: correct
+  strategy: adaptive
+  aux_keys: [format, valid_expression, uses_numbers, allowed_ops, brevity]
+  init_weight: 0.20
+  min_weight: 0.02
+  max_weight: 0.35
+  ema_beta: 0.90
+  lr: 0.30
+  primary_success_decay: 0.75
+data:
+  train: data/countdown/train.jsonl
+  validation: data/countdown/validation.jsonl
+  tests:
+    in_dist: data/countdown/test_in_dist.jsonl
+    ood_long: data/countdown/test_ood_long.jsonl
+    ood_division: data/countdown/test_ood_division.jsonl
+harness:
+  train_prompt_field: prompt_high
+  eval_prompt_fields: [prompt_low, prompt_mid, prompt_high]
+metrics:
+  - correct
+  - format
+  - valid_expression
+  - uses_numbers
+  - allowed_ops
+  - brevity
+  - reward_hacking_candidate

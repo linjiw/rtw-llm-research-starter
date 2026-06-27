@@ -1,0 +1,15 @@
+baselines:
+  base_no_posttrain:
+    description: Evaluate the base model without parameter updates.
+  grpo_static:
+    reward_strategy: static
+    description: Fixed expert-designed auxiliary weights.
+  grpo_manual:
+    reward_strategy: manual
+    description: Linearly decays auxiliary weights from high to low.
+  grpo_random:
+    reward_strategy: random
+    description: Random auxiliary weights at each teacher update.
+  grpo_rtw:
+    reward_strategy: adaptive
+    description: RTW controller adapts weights from recent primary and auxiliary performance.

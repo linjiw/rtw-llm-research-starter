@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rtw-llm"
+version = "0.1.0"
+description = "Reward Training Wheels for Harness-Aware LLM Post-Training"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+authors = [{name = "RTW-LLM Research Starter"}]
+dependencies = [
+  "torch>=2.3",
+  "transformers>=4.45",
+  "datasets>=2.20",
+  "accelerate>=0.34",
+  "peft>=0.13",
+  "trl>=0.12",
+  "bitsandbytes>=0.43; platform_system == 'Linux'",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "pyyaml>=6.0",
+  "tqdm>=4.66",
+  "rich>=13.7",
+  "pydantic>=2.7",
+  "wandb>=0.17",
+  "matplotlib>=3.8",
+  "pytest>=8.2",
+  "ruff>=0.5"
+]
+
+[project.optional-dependencies]
+inference = ["vllm>=0.6"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "scripts", "tests"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
