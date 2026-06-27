@@ -10,9 +10,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from rtw_llm.countdown import difficulty_spec, random_solvable_task
-from rtw_llm.data import write_jsonl
-from rtw_llm.prompts import make_prompt, make_sft_completion
+from rtw_llm.countdown import difficulty_spec, random_solvable_task  # noqa: E402
+from rtw_llm.data import write_jsonl  # noqa: E402
+from rtw_llm.prompts import make_prompt, make_sft_completion  # noqa: E402
 
 
 def build_records(count: int, split: str, difficulties: list[str], seed: int) -> list[dict]:

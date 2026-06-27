@@ -2,6 +2,9 @@ __pycache__/
 *.py[cod]
 .env
 .venv/
+*.egg-info/
+build/
+dist/
 wandb/
 outputs/
 logs/*.jsonl
