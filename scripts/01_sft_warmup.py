@@ -5,9 +5,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import torch
 from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
+
+from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwargs
 
 
 def main() -> None:
@@ -19,6 +22,7 @@ def main() -> None:
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
+    parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
     args = parser.parse_args()
 
@@ -38,19 +42,24 @@ def main() -> None:
             target_modules="all-linear",
         )
 
-    train_args = SFTConfig(
-        output_dir=args.output_dir,
-        max_steps=args.max_steps,
-        per_device_train_batch_size=args.batch_size,
-        gradient_accumulation_steps=args.grad_accum,
-        learning_rate=args.learning_rate,
-        logging_steps=10,
-        save_steps=100,
-        max_seq_length=1024,
-        bf16=True,
-        report_to="wandb",
-        run_name=Path(args.output_dir).name,
-    )
+    use_cuda = torch.cuda.is_available()
+    config_kwargs = {
+        "output_dir": args.output_dir,
+        "max_steps": args.max_steps,
+        "per_device_train_batch_size": args.batch_size,
+        "gradient_accumulation_steps": args.grad_accum,
+        "learning_rate": args.learning_rate,
+        "logging_steps": 10,
+        "save_steps": 100,
+        "bf16": use_cuda,
+        "fp16": False,
+        "optim": "adamw_torch_fused" if use_cuda else "adamw_torch",
+        "report_to": args.report_to,
+        "run_name": Path(args.output_dir).name,
+        "trust_remote_code": True,
+    }
+    set_first_supported_kwarg(SFTConfig, config_kwargs, ["max_seq_length", "max_length"], 1024)
+    train_args = SFTConfig(**supported_config_kwargs(SFTConfig, config_kwargs))
 
     trainer = SFTTrainer(
         model=args.model_name,

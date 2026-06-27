@@ -37,6 +37,7 @@ class RTWRewardManager:
         primary_weight: float = 1.0,
         log_path: str | None = None,
     ) -> None:
+        self.__name__ = "rtw_reward"
         self.teacher = teacher
         self.primary_weight = primary_weight
         self.log_path = Path(log_path) if log_path else None

@@ -21,6 +21,7 @@ def main() -> None:
     parser.add_argument("--data_path", default="data/countdown/test_in_dist.jsonl")
     parser.add_argument("--output_dir", default="outputs/eval")
     parser.add_argument("--engine", choices=["hf", "vllm"], default="hf")
+    parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     parser.add_argument("--prompt_field", default="prompt")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--batch_size", type=int, default=8)
@@ -31,7 +32,11 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     examples = read_jsonl(args.data_path, limit=args.limit)
-    engine = VLLMEngine(args.model_name) if args.engine == "vllm" else HFEngine(args.model_name, args.adapter_path)
+    engine = (
+        VLLMEngine(args.model_name)
+        if args.engine == "vllm"
+        else HFEngine(args.model_name, args.adapter_path, device=args.device)
+    )
     gen_config = GenerationConfigLite(
         max_new_tokens=args.max_new_tokens,
         temperature=args.temperature,

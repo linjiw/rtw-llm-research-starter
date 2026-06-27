@@ -10,6 +10,20 @@ head -n 1 data/countdown/train.jsonl | jq .
 
 ## 1. Base eval
 
+### MacBook M4 smoke eval
+
+```bash
+source .venv/bin/activate
+export PYTORCH_ENABLE_MPS_FALLBACK=1
+make m4-check
+make eval-m4-smoke
+```
+
+Use this to validate prompt -> generation -> verifier -> metrics locally. It is
+not a substitute for CUDA GRPO training.
+
+### CUDA or CPU base eval
+
 ```bash
 python scripts/03_eval.py \
   --model_name Qwen/Qwen2.5-0.5B-Instruct \
@@ -19,6 +33,9 @@ python scripts/03_eval.py \
 ```
 
 ## 2. First GRPO RTW smoke run
+
+Run this on a CUDA/NVIDIA host for meaningful signal. On a MacBook M4, only run
+the 5-step compatibility version from `docs/HARDWARE_AND_INFRA.md`.
 
 ```bash
 WANDB_PROJECT=rtw-llm-countdown python scripts/02_grpo_train.py \

@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import torch
 from datasets import load_dataset
 from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
 from rtw_llm.rewards import RTWRewardManager
 from rtw_llm.teacher import RTWTeacher, TeacherConfig
+from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwargs
 
 
 def main() -> None:
@@ -68,21 +70,31 @@ def main() -> None:
             target_modules="all-linear",
         )
 
-    train_args = GRPOConfig(
-        output_dir=str(output_dir),
-        max_steps=args.max_steps,
-        learning_rate=args.learning_rate,
-        per_device_train_batch_size=args.batch_size,
-        gradient_accumulation_steps=args.grad_accum,
-        num_generations=args.num_generations,
-        max_prompt_length=args.max_prompt_length,
-        max_completion_length=args.max_completion_length,
-        logging_steps=10,
-        save_steps=100,
-        bf16=True,
-        report_to=args.report_to,
-        run_name=output_dir.name,
+    use_cuda = torch.cuda.is_available()
+    config_kwargs = {
+        "output_dir": str(output_dir),
+        "max_steps": args.max_steps,
+        "learning_rate": args.learning_rate,
+        "per_device_train_batch_size": args.batch_size,
+        "gradient_accumulation_steps": args.grad_accum,
+        "num_generations": args.num_generations,
+        "max_completion_length": args.max_completion_length,
+        "logging_steps": 10,
+        "save_steps": 100,
+        "bf16": use_cuda,
+        "fp16": False,
+        "optim": "adamw_torch_fused" if use_cuda else "adamw_torch",
+        "report_to": args.report_to,
+        "run_name": output_dir.name,
+        "trust_remote_code": True,
+    }
+    set_first_supported_kwarg(
+        GRPOConfig,
+        config_kwargs,
+        ["max_prompt_length", "max_length"],
+        args.max_prompt_length,
     )
+    train_args = GRPOConfig(**supported_config_kwargs(GRPOConfig, config_kwargs))
 
     trainer = GRPOTrainer(
         model=args.model_name,
