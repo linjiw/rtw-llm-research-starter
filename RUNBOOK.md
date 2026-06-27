@@ -37,16 +37,20 @@ python scripts/03_eval.py \
 Run this on a CUDA/NVIDIA host for meaningful signal. On a MacBook M4, only run
 the 5-step compatibility version from `docs/HARDWARE_AND_INFRA.md`.
 
-First verify the CUDA stack:
+First verify the CUDA stack and save the environment preflight:
 
 ```bash
-python - <<'PY'
+mkdir -p outputs
+python - <<'PY' | tee outputs/cuda_env_preflight.txt
+import sys
 import torch
+print("python:", sys.version)
 print("torch:", torch.__version__)
 print("cuda_available:", torch.cuda.is_available())
 print("cuda_version:", torch.version.cuda)
 if torch.cuda.is_available():
     print("gpu:", torch.cuda.get_device_name(0))
+    print("gpu_count:", torch.cuda.device_count())
 PY
 ```
 
@@ -57,6 +61,7 @@ WANDB_PROJECT=rtw-llm-countdown python scripts/02_grpo_train.py \
   --eval_path data/countdown/validation.jsonl \
   --output_dir outputs/grpo_rtw_cuda_smoke_50 \
   --reward_strategy adaptive \
+  --seed 0 \
   --max_steps 50 \
   --num_generations 4
 ```
@@ -67,7 +72,8 @@ Immediately inspect health:
 tail -n 5 outputs/grpo_rtw_cuda_smoke_50/reward_components.jsonl
 tail -n 5 outputs/grpo_rtw_cuda_smoke_50/teacher_weights.jsonl
 python scripts/04_analyze_results.py --run_dir outputs/grpo_rtw_cuda_smoke_50
-python scripts/05_check_run_health.py --run_dir outputs/grpo_rtw_cuda_smoke_50
+python scripts/05_check_run_health.py \
+  --run_dir outputs/grpo_rtw_cuda_smoke_50 | tee outputs/grpo_rtw_cuda_smoke_50/health.txt
 ```
 
 Acceptance criteria for the 50-step smoke are modest: training completes without
@@ -101,7 +107,7 @@ WANDB_PROJECT=rtw-llm-countdown python scripts/01_sft_warmup.py \
   --eval_path data/countdown/validation.jsonl \
   --output_dir outputs/sft_harness_warmup_qwen05b_seed0 \
   --seed 0 \
-  --max_steps 200
+  --max_steps 100
 ```
 
 Evaluate the warmup:
