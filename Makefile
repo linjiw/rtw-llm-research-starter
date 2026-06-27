@@ -1,4 +1,6 @@
-.PHONY: install test lint data eval-smoke m4-check eval-m4-smoke
+RUN_DIR ?= outputs/grpo_rtw_cuda_smoke_50
+
+.PHONY: install test lint data eval-smoke m4-check eval-m4-smoke check-run-health
 
 install:
 	pip install -e .
@@ -20,3 +22,6 @@ m4-check:
 
 eval-m4-smoke:
 	PYTORCH_ENABLE_MPS_FALLBACK=1 python scripts/03_eval.py --model_name Qwen/Qwen2.5-0.5B-Instruct --engine hf --device mps --data_path data/countdown/test_in_dist.jsonl --output_dir outputs/eval_m4_base_smoke --limit 16 --batch_size 1 --max_new_tokens 64
+
+check-run-health:
+	python scripts/05_check_run_health.py --run_dir $(RUN_DIR)

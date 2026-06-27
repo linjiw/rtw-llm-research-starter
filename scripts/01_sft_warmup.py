@@ -17,16 +17,19 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--train_path", default="data/countdown/train.jsonl")
+    parser.add_argument("--eval_path", default=None)
     parser.add_argument("--output_dir", default="outputs/sft_qwen05b")
     parser.add_argument("--max_steps", type=int, default=300)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
     args = parser.parse_args()
 
     ds = load_dataset("json", data_files=args.train_path, split="train")
+    eval_ds = load_dataset("json", data_files=args.eval_path, split="train") if args.eval_path else None
 
     def format_example(example: dict) -> str:
         return example["prompt"] + "\n" + example["completion"]
@@ -56,6 +59,7 @@ def main() -> None:
         "optim": "adamw_torch_fused" if use_cuda else "adamw_torch",
         "report_to": args.report_to,
         "run_name": Path(args.output_dir).name,
+        "seed": args.seed,
         "trust_remote_code": True,
     }
     set_first_supported_kwarg(SFTConfig, config_kwargs, ["max_seq_length", "max_length"], 1024)
@@ -65,6 +69,7 @@ def main() -> None:
         model=args.model_name,
         args=train_args,
         train_dataset=ds,
+        eval_dataset=eval_ds,
         formatting_func=format_example,
         peft_config=peft_config,
     )

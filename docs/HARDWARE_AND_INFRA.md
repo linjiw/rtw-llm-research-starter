@@ -74,6 +74,16 @@ The scaffold logs:
 
 Use W&B or TensorBoard for run comparison.
 
+For early GRPO smoke diagnostics, run:
+
+```bash
+python scripts/05_check_run_health.py --run_dir outputs/grpo_rtw_cuda_smoke_50
+```
+
+The checker summarizes reward variance, nonzero component rates, and teacher
+weight movement. Treat a flat all-zero non-brevity reward profile as a signal to
+do an SFT harness warmup before spending more GRPO budget.
+
 ## Reproducibility checklist
 
 - Save dataset generation seed.

@@ -11,6 +11,8 @@ from fractions import Fraction
 from typing import Any
 
 ANSWER_RE = re.compile(r"<answer>(.*?)</answer>", flags=re.IGNORECASE | re.DOTALL)
+ANSWER_OPEN_RE = re.compile(r"<answer>", flags=re.IGNORECASE)
+ANSWER_CLOSE_RE = re.compile(r"</answer>", flags=re.IGNORECASE)
 
 OP_SYMBOLS: dict[type[ast.operator], str] = {
     ast.Add: "+",
@@ -38,19 +40,40 @@ class VerificationResult:
     correct: bool
     value: str | None
     error: str | None = None
+    contains_open_answer_tag: bool | None = None
+    contains_close_answer_tag: bool | None = None
 
     def to_components(self, max_chars: int = 600) -> dict[str, float]:
         brevity = 1.0 if len(self.expression) <= max_chars else 0.0
+        open_tag = (
+            self.found_answer_tag
+            if self.contains_open_answer_tag is None
+            else self.contains_open_answer_tag
+        )
+        close_tag = (
+            self.found_answer_tag
+            if self.contains_close_answer_tag is None
+            else self.contains_close_answer_tag
+        )
+        has_span = self.found_answer_tag
+        format_score = (float(open_tag) + float(close_tag) + float(has_span)) / 3.0
         return {
-            "format": float(self.found_answer_tag),
+            "contains_open_answer_tag": float(open_tag),
+            "contains_close_answer_tag": float(close_tag),
+            "has_extractable_answer_span": float(has_span),
+            "format": format_score,
             "parse_ok": float(self.parse_ok),
+            "expression_parseable": float(self.parse_ok),
             "uses_numbers": float(self.uses_all_numbers),
+            "uses_allowed_numbers": float(self.uses_all_numbers),
             "allowed_ops": float(self.uses_allowed_ops),
+            "uses_allowed_ops": float(self.uses_allowed_ops),
             "valid_expression": float(
                 self.parse_ok and self.uses_all_numbers and self.uses_allowed_ops and self.numeric_ok
             ),
             "brevity": brevity,
             "correct": float(self.correct),
+            "exact_correct": float(self.correct),
         }
 
 
@@ -60,6 +83,16 @@ def extract_answer(text: str) -> tuple[str, bool]:
     if match:
         return match.group(1).strip(), True
     return (text or "").strip(), False
+
+
+def answer_tag_signals(text: str) -> dict[str, bool]:
+    """Return dense format signals for the required answer tag contract."""
+    raw = text or ""
+    return {
+        "contains_open_answer_tag": bool(ANSWER_OPEN_RE.search(raw)),
+        "contains_close_answer_tag": bool(ANSWER_CLOSE_RE.search(raw)),
+        "has_extractable_answer_span": bool(ANSWER_RE.search(raw)),
+    }
 
 
 def _collect_numbers(node: ast.AST) -> list[int]:
@@ -122,18 +155,44 @@ def verify_expression(
     target: int,
     allowed_ops: list[str],
     found_answer_tag: bool = True,
+    contains_open_answer_tag: bool | None = None,
+    contains_close_answer_tag: bool | None = None,
 ) -> VerificationResult:
     """Verify a Countdown expression with exact rational arithmetic."""
     expr = (expression or "").strip()
     allowed_set = set(allowed_ops)
 
     if not expr:
-        return VerificationResult(expr, found_answer_tag, False, False, False, False, False, None, "empty")
+        return VerificationResult(
+            expr,
+            found_answer_tag,
+            False,
+            False,
+            False,
+            False,
+            False,
+            None,
+            "empty",
+            contains_open_answer_tag,
+            contains_close_answer_tag,
+        )
 
     try:
         tree = ast.parse(expr, mode="eval")
     except SyntaxError as exc:
-        return VerificationResult(expr, found_answer_tag, False, False, False, False, False, None, str(exc))
+        return VerificationResult(
+            expr,
+            found_answer_tag,
+            False,
+            False,
+            False,
+            False,
+            False,
+            None,
+            str(exc),
+            contains_open_answer_tag,
+            contains_close_answer_tag,
+        )
 
     try:
         nums = _collect_numbers(tree)
@@ -154,6 +213,8 @@ def verify_expression(
             correct,
             value_str,
             None,
+            contains_open_answer_tag,
+            contains_close_answer_tag,
         )
     except Exception as exc:  # verifier must be robust to arbitrary model text
         uses_all = False
@@ -164,17 +225,32 @@ def verify_expression(
             uses_allowed = _ops_in_ast(tree).issubset(allowed_set)
         except Exception:
             pass
-        return VerificationResult(expr, found_answer_tag, True, uses_all, uses_allowed, False, False, None, str(exc))
+        return VerificationResult(
+            expr,
+            found_answer_tag,
+            True,
+            uses_all,
+            uses_allowed,
+            False,
+            False,
+            None,
+            str(exc),
+            contains_open_answer_tag,
+            contains_close_answer_tag,
+        )
 
 
 def verify_completion(completion: str, example: dict[str, Any]) -> VerificationResult:
     expr, has_tag = extract_answer(completion)
+    signals = answer_tag_signals(completion)
     return verify_expression(
         expr,
         numbers=list(example["numbers"]),
         target=int(example["target"]),
         allowed_ops=list(example["allowed_ops"]),
         found_answer_tag=has_tag,
+        contains_open_answer_tag=signals["contains_open_answer_tag"],
+        contains_close_answer_tag=signals["contains_close_answer_tag"],
     )
 
 
