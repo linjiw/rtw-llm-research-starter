@@ -22,7 +22,7 @@ def make_prompt(numbers: list[int], target: int, allowed_ops: list[str], level: 
     if level == "low":
         return (
             f"Use the numbers [{nums}] to make {target}. "
-            f"Allowed operations: {ops}. Give the expression."
+            f"Allowed operations: {ops}. Return only one expression in <answer>...</answer>."
         )
 
     if level == "mid":
@@ -31,7 +31,8 @@ def make_prompt(numbers: list[int], target: int, allowed_ops: list[str], level: 
             f"Numbers: [{nums}]\n"
             f"Target: {target}\n"
             f"Allowed operations: {ops}\n"
-            "Use every number exactly once. Return only one expression inside "
+            "Use every number exactly once. Do not introduce constants. "
+            "Do not explain. Do not use markdown. Return only one expression inside "
             "<answer>...</answer>."
         )
 
@@ -43,8 +44,10 @@ def make_prompt(numbers: list[int], target: int, allowed_ops: list[str], level: 
             f"2. Use only these operators: {ops}\n"
             "3. Parentheses are allowed. No new constants are allowed.\n"
             f"4. The expression must evaluate exactly to the target: {target}\n"
-            "5. Put the final expression in <answer>...</answer>.\n\n"
+            "5. Put only the final expression in <answer>...</answer>.\n"
+            "6. Do not include explanation, prose, or markdown outside the answer tags.\n\n"
             "Bad answer example: <answer>target</answer> because it invents a constant.\n"
+            "Bad answer example: <answer>7</answer> unless 7 is one of the provided numbers and all other numbers are used.\n"
             "Good answer format example: <answer>(1+2)*3</answer>\n\n"
             "Now solve the task."
         )

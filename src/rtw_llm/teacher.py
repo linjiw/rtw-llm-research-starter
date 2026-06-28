@@ -7,12 +7,34 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-AUX_KEYS = ["format", "valid_expression", "uses_numbers", "allowed_ops", "brevity"]
+AUX_KEYS = [
+    "format",
+    "valid_expression",
+    "number_multiset_f1",
+    "allowed_ops",
+    "numeric_distance_reward",
+    "brevity",
+]
+
+CONSTRAINT_AUX_KEYS = ("valid_expression", "number_multiset_f1", "allowed_ops")
+
+STABLE_FLOORS = {
+    "format": 0.03,
+    "valid_expression": 0.16,
+    "number_multiset_f1": 0.18,
+    "allowed_ops": 0.12,
+    "numeric_distance_reward": 0.00,
+    "brevity": 0.02,
+}
+
+STABLE_CAPS = {
+    "numeric_distance_reward": 0.20,
+}
 
 
 @dataclass
 class TeacherConfig:
-    strategy: str = "adaptive"  # adaptive | static | manual | random
+    strategy: str = "adaptive"  # adaptive | adaptive_stable | static | manual | random
     min_weight: float = 0.02
     max_weight: float = 0.35
     init_weight: float = 0.20
@@ -20,6 +42,12 @@ class TeacherConfig:
     lr: float = 0.30
     primary_success_decay: float = 0.75
     manual_warmup_steps: int = 100
+    stable_delay_steps: int = 50
+    stable_lr: float = 0.10
+    stable_alpha: float = 0.10
+    stable_target_weight_sum: float = 1.20
+    stable_floors: dict[str, float] = field(default_factory=lambda: STABLE_FLOORS.copy())
+    stable_caps: dict[str, float] = field(default_factory=lambda: STABLE_CAPS.copy())
     seed: int = 0
     log_path: str | None = None
     aux_keys: list[str] = field(default_factory=lambda: AUX_KEYS.copy())
@@ -36,7 +64,7 @@ class RTWTeacher:
 
     def __init__(self, config: TeacherConfig | None = None):
         self.config = config or TeacherConfig()
-        if self.config.strategy not in {"adaptive", "static", "manual", "random"}:
+        if self.config.strategy not in {"adaptive", "adaptive_stable", "static", "manual", "random"}:
             raise ValueError(f"Unknown strategy: {self.config.strategy}")
         self.step = 0
         self.rng = random.Random(self.config.seed)
@@ -44,6 +72,7 @@ class RTWTeacher:
         self.ema_aux = {k: 0.0 for k in self.config.aux_keys}
         self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
         self.history: list[dict] = []
+        self.last_diagnostics: dict = {}
         self.log_path = Path(self.config.log_path) if self.config.log_path else None
         if self.log_path:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -78,8 +107,16 @@ class RTWTeacher:
             batch_aux[key] = sum(c.get(key, 0.0) for c in comps) / len(comps)
             self.ema_aux[key] = beta * self.ema_aux[key] + (1 - beta) * batch_aux[key]
 
+        previous_weights = dict(self.weights)
+        raw_weights: dict[str, float] | None = None
+        floor_hits: list[str] = []
+        cap_hits: list[str] = []
+        delay_active = False
+
         if self.config.strategy == "adaptive":
             self._adaptive_update()
+        elif self.config.strategy == "adaptive_stable":
+            raw_weights, floor_hits, cap_hits, delay_active = self._adaptive_stable_update(previous_weights)
         elif self.config.strategy == "static":
             self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
         elif self.config.strategy == "manual":
@@ -87,6 +124,14 @@ class RTWTeacher:
         elif self.config.strategy == "random":
             self.weights = self.get_weights()
 
+        diagnostics = self._weight_diagnostics(
+            previous_weights=previous_weights,
+            raw_weights=raw_weights,
+            floor_hits=floor_hits,
+            cap_hits=cap_hits,
+            delay_active=delay_active,
+        )
+        self.last_diagnostics = diagnostics
         self.step += 1
         record = {
             "step": self.step,
@@ -96,25 +141,132 @@ class RTWTeacher:
             "batch_primary": batch_primary,
             "batch_aux": batch_aux,
             "weights": dict(self.weights),
+            "diagnostics": diagnostics,
         }
         self.history.append(record)
         self._log(record)
         return dict(self.weights)
 
     def _adaptive_update(self) -> None:
+        self.weights = self._adaptive_candidate(self.weights)
+
+    def _adaptive_candidate(
+        self,
+        base_weights: dict[str, float],
+        lr: float | None = None,
+    ) -> dict[str, float]:
         # Core RTW intuition:
         #   1. If the student is failing an auxiliary behavior, increase that wheel.
         #   2. As primary success rises, gradually remove dependence on wheels.
         competence = max(0.0, min(1.0, self.ema_primary))
         global_decay = max(0.0, 1.0 - self.config.primary_success_decay * competence)
         new_weights: dict[str, float] = {}
-        for key, old in self.weights.items():
+        for key, old in base_weights.items():
             need = 1.0 - max(0.0, min(1.0, self.ema_aux.get(key, 0.0)))
             target = self.config.min_weight + (self.config.max_weight - self.config.min_weight) * need * global_decay
             target = max(self.config.min_weight, min(self.config.max_weight, target))
-            updated = (1 - self.config.lr) * old + self.config.lr * target
+            update_lr = self.config.lr if lr is None else lr
+            updated = (1 - update_lr) * old + update_lr * target
             new_weights[key] = float(updated)
-        self.weights = new_weights
+        return new_weights
+
+    def _adaptive_stable_update(
+        self,
+        previous_weights: dict[str, float],
+    ) -> tuple[dict[str, float], list[str], list[str], bool]:
+        if self.step < self.config.stable_delay_steps:
+            self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
+            return dict(self.weights), [], [], True
+
+        raw_weights = self._adaptive_candidate(previous_weights, lr=self.config.stable_lr)
+        alpha = max(0.0, min(1.0, self.config.stable_alpha))
+        smoothed = {
+            key: (1 - alpha) * previous_weights[key] + alpha * raw_weights[key]
+            for key in self.config.aux_keys
+        }
+        self.weights, floor_hits, cap_hits = self._project_stable_weights(smoothed)
+        return raw_weights, floor_hits, cap_hits, False
+
+    def _project_stable_weights(
+        self,
+        candidate: dict[str, float],
+    ) -> tuple[dict[str, float], list[str], list[str]]:
+        floors = {
+            key: max(self.config.min_weight, float(self.config.stable_floors.get(key, self.config.min_weight)))
+            for key in self.config.aux_keys
+        }
+        caps = {
+            key: min(self.config.max_weight, float(self.config.stable_caps.get(key, self.config.max_weight)))
+            for key in self.config.aux_keys
+        }
+        caps = {key: max(caps[key], floors[key]) for key in self.config.aux_keys}
+
+        weights = {
+            key: min(caps[key], max(floors[key], float(candidate.get(key, self.config.init_weight))))
+            for key in self.config.aux_keys
+        }
+
+        min_budget = sum(floors.values())
+        max_budget = sum(caps.values())
+        target = max(min_budget, min(float(self.config.stable_target_weight_sum), max_budget))
+        eps = 1e-12
+        for _ in range(32):
+            total = sum(weights.values())
+            diff = target - total
+            if abs(diff) <= 1e-9:
+                break
+            if diff > 0:
+                movable = [key for key in self.config.aux_keys if weights[key] < caps[key] - eps]
+                capacity = sum(caps[key] - weights[key] for key in movable)
+                if capacity <= eps:
+                    break
+                for key in movable:
+                    weights[key] += diff * ((caps[key] - weights[key]) / capacity)
+                    weights[key] = min(caps[key], weights[key])
+            else:
+                movable = [key for key in self.config.aux_keys if weights[key] > floors[key] + eps]
+                capacity = sum(weights[key] - floors[key] for key in movable)
+                if capacity <= eps:
+                    break
+                for key in movable:
+                    weights[key] += diff * ((weights[key] - floors[key]) / capacity)
+                    weights[key] = max(floors[key], weights[key])
+
+        floor_hits = [key for key in self.config.aux_keys if weights[key] <= floors[key] + 1e-8]
+        cap_hits = [key for key in self.config.aux_keys if weights[key] >= caps[key] - 1e-8]
+        return {key: float(value) for key, value in weights.items()}, floor_hits, cap_hits
+
+    def _weight_diagnostics(
+        self,
+        previous_weights: dict[str, float],
+        raw_weights: dict[str, float] | None,
+        floor_hits: list[str],
+        cap_hits: list[str],
+        delay_active: bool,
+    ) -> dict:
+        raw_weights = raw_weights or dict(self.weights)
+        weight_sum = sum(self.weights.values())
+        raw_weight_sum = sum(raw_weights.values())
+        constraint_weight_mass = sum(self.weights.get(key, 0.0) for key in CONSTRAINT_AUX_KEYS)
+        numeric_distance_weight = self.weights.get("numeric_distance_reward", 0.0)
+        update_deltas = [
+            abs(self.weights.get(key, 0.0) - previous_weights.get(key, 0.0))
+            for key in self.config.aux_keys
+        ]
+        return {
+            "delay_active": bool(delay_active),
+            "weight_sum": float(weight_sum),
+            "raw_weight_sum": float(raw_weight_sum),
+            "constraint_weight_mass": float(constraint_weight_mass),
+            "numeric_distance_weight": float(numeric_distance_weight),
+            "numeric_distance_to_constraint_ratio": float(
+                numeric_distance_weight / max(constraint_weight_mass, 1e-12)
+            ),
+            "update_l1": float(sum(update_deltas)),
+            "update_linf": float(max(update_deltas) if update_deltas else 0.0),
+            "floor_hits": {key: key in set(floor_hits) for key in self.config.aux_keys},
+            "cap_hits": {key: key in set(cap_hits) for key in self.config.aux_keys},
+        }
 
     def _log(self, record: dict) -> None:
         if not self.log_path:

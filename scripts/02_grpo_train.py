@@ -21,7 +21,11 @@ def main() -> None:
     parser.add_argument("--train_path", default="data/countdown/train.jsonl")
     parser.add_argument("--eval_path", default="data/countdown/validation.jsonl")
     parser.add_argument("--output_dir", default="outputs/grpo_rtw_qwen05b")
-    parser.add_argument("--reward_strategy", choices=["adaptive", "static", "manual", "random"], default="adaptive")
+    parser.add_argument(
+        "--reward_strategy",
+        choices=["adaptive", "adaptive_stable", "static", "manual", "random"],
+        default="adaptive",
+    )
     parser.add_argument("--max_steps", type=int, default=300)
     parser.add_argument("--learning_rate", type=float, default=5e-6)
     parser.add_argument("--batch_size", type=int, default=2)

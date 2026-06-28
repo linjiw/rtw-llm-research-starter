@@ -148,6 +148,71 @@ for STRATEGY in static manual random adaptive; do
 done
 ```
 
+## 3b. v0.6c adaptive-stable teacher
+
+Use this only after local tests and ruff pass, and commit before CUDA so the run
+has an archival code state.
+
+100-step smoke; 50 steps is not enough because adaptation is delayed for the
+first 50 teacher updates:
+
+```bash
+RUN=outputs/grpo_rtw_v06c_adaptive_stable_cuda_smoke_100_seed0
+mkdir -p "$RUN"
+
+WANDB_PROJECT=rtw-llm-countdown python scripts/02_grpo_train.py \
+  --model_name Qwen/Qwen2.5-0.5B-Instruct \
+  --train_path data/countdown/train.jsonl \
+  --eval_path data/countdown/validation.jsonl \
+  --output_dir "$RUN" \
+  --reward_strategy adaptive_stable \
+  --seed 0 \
+  --max_steps 100 \
+  --num_generations 4 \
+  2>&1 | tee "$RUN/train.log"
+
+python scripts/05_check_run_health.py \
+  --run_dir "$RUN" \
+  | tee "$RUN/health_final.txt"
+```
+
+If smoke passes, run the 300-step pilot and evaluate fixed splits:
+
+```bash
+RUN=outputs/grpo_rtw_v06c_adaptive_stable_cuda_pilot_300_seed0
+mkdir -p "$RUN"
+
+WANDB_PROJECT=rtw-llm-countdown python scripts/02_grpo_train.py \
+  --model_name Qwen/Qwen2.5-0.5B-Instruct \
+  --train_path data/countdown/train.jsonl \
+  --eval_path data/countdown/validation.jsonl \
+  --output_dir "$RUN" \
+  --reward_strategy adaptive_stable \
+  --seed 0 \
+  --max_steps 300 \
+  --num_generations 4 \
+  2>&1 | tee "$RUN/train.log"
+
+python scripts/05_check_run_health.py \
+  --run_dir "$RUN" \
+  | tee "$RUN/health_final.txt"
+
+python scripts/04_analyze_results.py --run_dir "$RUN"
+
+CKPT=$(find "$RUN" -maxdepth 1 -type d -name "checkpoint-*" | sort -V | tail -n 1)
+if [ -z "$CKPT" ]; then CKPT="$RUN"; fi
+
+for SPLIT in validation test_in_dist test_ood_long test_ood_division; do
+  python scripts/03_eval.py \
+    --model_name "$CKPT" \
+    --device cuda \
+    --data_path "data/countdown/${SPLIT}.jsonl" \
+    --output_dir "outputs/eval_rtw_v06c_adaptive_stable_300_seed0_${SPLIT}" \
+    --batch_size 4 \
+    --max_new_tokens 64
+done
+```
+
 ## 4. Evaluate harness shift and OOD
 
 ```bash

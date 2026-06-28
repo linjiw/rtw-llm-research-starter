@@ -41,6 +41,12 @@ def test_verify_correct_expression():
     comps = result.to_components()
     assert comps["exact_correct"] == 1.0
     assert comps["uses_allowed_numbers"] == 1.0
+    assert comps["number_precision"] == 1.0
+    assert comps["number_recall"] == 1.0
+    assert comps["number_multiset_f1"] == 1.0
+    assert comps["uses_no_extra_numbers"] == 1.0
+    assert comps["uses_all_required_numbers"] == 1.0
+    assert comps["numeric_distance_reward"] == 1.0
 
 
 def test_reward_breakdown_splits_primary_and_auxiliary_reward():
@@ -56,6 +62,106 @@ def test_reject_invented_constant():
     result = verify_expression("9", [1, 2, 3], 9, ["+", "-", "*"])
     assert not result.correct
     assert not result.uses_all_numbers
+    comps = result.to_components()
+    assert comps["uses_allowed_numbers"] == 0.0
+    assert comps["number_precision"] == 0.0
+    assert comps["number_recall"] == 0.0
+    assert comps["number_multiset_f1"] == 0.0
+    assert comps["uses_no_extra_numbers"] == 0.0
+    assert comps["uses_all_required_numbers"] == 0.0
+    assert comps["allowed_ops"] == 0.0
+    assert comps["numeric_distance_reward"] == 0.0
+
+
+def test_near_target_invented_constant_gets_no_numeric_distance_reward():
+    result = verify_completion(
+        "<answer>149</answer>",
+        {"numbers": [12, 13, 15, 11], "target": 150, "allowed_ops": ["+", "-", "*"]},
+    )
+    comps = result.to_components()
+    assert comps["number_multiset_f1"] == 0.0
+    assert comps["uses_no_extra_numbers"] == 0.0
+    assert comps["uses_all_required_numbers"] == 0.0
+    assert comps["uses_allowed_numbers"] == 0.0
+    assert comps["allowed_ops"] == 0.0
+    assert comps["valid_expression"] == 0.0
+    assert comps["exact_correct"] == 0.0
+    assert comps["numeric_distance_reward"] == 0.0
+
+
+def test_partial_legal_number_use_gets_fractional_credit():
+    result = verify_completion(
+        "<answer>12+13</answer>",
+        {"numbers": [12, 13, 15, 11], "target": 150, "allowed_ops": ["+", "-", "*"]},
+    )
+    comps = result.to_components()
+    assert comps["number_precision"] == 1.0
+    assert comps["number_recall"] == 0.5
+    assert comps["number_multiset_f1"] == 2.0 / 3.0
+    assert comps["uses_no_extra_numbers"] == 1.0
+    assert comps["uses_all_required_numbers"] == 0.0
+    assert comps["uses_allowed_numbers"] == 0.0
+    assert comps["valid_expression"] == 0.0
+    assert comps["exact_correct"] == 0.0
+
+
+def test_legal_number_expression_wrong_target_is_valid_but_not_correct():
+    result = verify_completion(
+        "<answer>((12+13)*(15-11))</answer>",
+        {"numbers": [12, 13, 15, 11], "target": 150, "allowed_ops": ["+", "-", "*"]},
+    )
+    comps = result.to_components()
+    assert comps["number_multiset_f1"] == 1.0
+    assert comps["uses_allowed_numbers"] == 1.0
+    assert comps["uses_allowed_ops"] == 1.0
+    assert comps["valid_expression"] == 1.0
+    assert comps["exact_correct"] == 0.0
+
+
+def test_fractional_number_reward_for_missing_number():
+    result = verify_expression("(1+2)", [1, 2, 3], 3, ["+", "-", "*"])
+    assert not result.correct
+    comps = result.to_components()
+    assert comps["parse_ok"] == 1.0
+    assert comps["uses_allowed_numbers"] == 0.0
+    assert comps["number_precision"] == 1.0
+    assert comps["number_recall"] == 2.0 / 3.0
+    assert comps["number_multiset_f1"] == 0.8
+    assert comps["uses_no_extra_numbers"] == 1.0
+    assert comps["uses_all_required_numbers"] == 0.0
+
+
+def test_fractional_number_reward_for_extra_number():
+    result = verify_expression("(1+2+4)", [1, 2, 3], 7, ["+", "-", "*"])
+    assert not result.correct
+    comps = result.to_components()
+    assert comps["parse_ok"] == 1.0
+    assert comps["uses_allowed_numbers"] == 0.0
+    assert comps["number_precision"] == 2.0 / 3.0
+    assert comps["number_recall"] == 2.0 / 3.0
+    assert comps["number_multiset_f1"] == 2.0 / 3.0
+    assert comps["uses_no_extra_numbers"] == 0.0
+    assert comps["uses_all_required_numbers"] == 0.0
+
+
+def test_fractional_number_reward_for_repeated_number():
+    result = verify_expression("(1+2+2)", [1, 2, 3], 5, ["+", "-", "*"])
+    assert not result.correct
+    comps = result.to_components()
+    assert comps["parse_ok"] == 1.0
+    assert comps["number_precision"] == 2.0 / 3.0
+    assert comps["number_recall"] == 2.0 / 3.0
+    assert comps["number_multiset_f1"] == 2.0 / 3.0
+    assert comps["uses_no_extra_numbers"] == 0.0
+    assert comps["uses_all_required_numbers"] == 0.0
+
+
+def test_numeric_distance_reward_for_wrong_target():
+    result = verify_expression("(1+2)*3", [1, 2, 3], 10, ["+", "-", "*"])
+    assert not result.correct
+    comps = result.to_components()
+    assert comps["valid_expression"] == 1.0
+    assert comps["numeric_distance_reward"] == 0.5
 
 
 def test_reject_disallowed_op():

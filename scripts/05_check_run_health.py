@@ -62,6 +62,15 @@ def summarize_reward_components(path: Path) -> tuple[dict, list[str]]:
     allowed_numbers_rate = component_mean(components, "uses_allowed_numbers", "uses_numbers")
     allowed_ops_rate = component_mean(components, "uses_allowed_ops", "allowed_ops")
     exact_correct_rate = component_mean(components, "exact_correct", "correct")
+    number_precision_mean = component_mean(components, "number_precision")
+    number_recall_mean = component_mean(components, "number_recall")
+    number_multiset_f1_mean = component_mean(components, "number_multiset_f1")
+    uses_no_extra_numbers_rate = component_mean(components, "uses_no_extra_numbers")
+    uses_all_required_numbers_rate = component_mean(components, "uses_all_required_numbers")
+    operator_precision_mean = component_mean(components, "operator_precision")
+    operator_recall_mean = component_mean(components, "operator_recall")
+    evaluates_without_exception_rate = component_mean(components, "evaluates_without_exception")
+    numeric_distance_reward_mean = component_mean(components, "numeric_distance_reward")
     tag_only_rate = extractable_span_rate - parseable_expression_rate
     span_series = component_series(components, "has_extractable_answer_span", "format")
     parseable_series = component_series(components, "expression_parseable", "parse_ok")
@@ -117,6 +126,15 @@ def summarize_reward_components(path: Path) -> tuple[dict, list[str]]:
                 "allowed_numbers_rate": allowed_numbers_rate,
                 "allowed_ops_rate": allowed_ops_rate,
                 "exact_correct_rate": exact_correct_rate,
+                "number_precision_mean": number_precision_mean,
+                "number_recall_mean": number_recall_mean,
+                "number_multiset_f1_mean": number_multiset_f1_mean,
+                "uses_no_extra_numbers_rate": uses_no_extra_numbers_rate,
+                "uses_all_required_numbers_rate": uses_all_required_numbers_rate,
+                "operator_precision_mean": operator_precision_mean,
+                "operator_recall_mean": operator_recall_mean,
+                "evaluates_without_exception_rate": evaluates_without_exception_rate,
+                "numeric_distance_reward_mean": numeric_distance_reward_mean,
                 "tag_only_rate": tag_only_rate,
                 "tag_only_observed_rate": tag_only_observed_rate,
                 "parseable_but_wrong_rate": parseable_but_wrong_rate,
@@ -146,6 +164,35 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
     moving = sorted(name for name, value in deltas.items() if float(value) > 1e-9)
     min_weight = float(weights.min(numeric_only=True).min())
     max_weight = float(weights.max(numeric_only=True).max())
+    weight_sums = weights.sum(axis=1)
+    constraint_columns = [c for c in ["valid_expression", "number_multiset_f1", "allowed_ops"] if c in weights]
+    if constraint_columns:
+        constraint_weight_mass = weights[constraint_columns].sum(axis=1)
+    else:
+        constraint_weight_mass = pd.Series([0.0] * len(weights), index=weights.index)
+    if "numeric_distance_reward" in weights:
+        numeric_distance_weight = weights["numeric_distance_reward"]
+    else:
+        numeric_distance_weight = pd.Series([0.0] * len(weights), index=weights.index)
+    numeric_distance_to_constraint_ratio = numeric_distance_weight / constraint_weight_mass.clip(lower=EPS)
+    if len(weights) > 1:
+        update_deltas = weights.diff().abs().iloc[1:]
+        teacher_update_l1_mean = float(update_deltas.sum(axis=1).mean())
+        teacher_update_linf_max = float(update_deltas.max(axis=1).max())
+    else:
+        teacher_update_l1_mean = 0.0
+        teacher_update_linf_max = 0.0
+
+    floor_hit_rate_by_component: dict[str, float] = {}
+    cap_hit_rate_by_component: dict[str, float] = {}
+    if "diagnostics" in df:
+        diagnostics = pd.json_normalize(df["diagnostics"])
+        for column in diagnostics.columns:
+            if column.startswith("floor_hits."):
+                floor_hit_rate_by_component[column.split(".", 1)[1]] = float(diagnostics[column].fillna(False).mean())
+            if column.startswith("cap_hits."):
+                cap_hit_rate_by_component[column.split(".", 1)[1]] = float(diagnostics[column].fillna(False).mean())
+
     per_component = {
         column: {
             "min": float(weights[column].min()),
@@ -156,7 +203,8 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
     }
 
     issues = []
-    if len(weights) > 1 and not moving:
+    strategies = set(df["strategy"].dropna().astype(str)) if "strategy" in df else set()
+    if len(weights) > 1 and not moving and strategies != {"static"}:
         issues.append("Teacher weights did not change over multiple updates.")
     if min_weight < 0.0 or max_weight > 1.0:
         issues.append(f"Teacher weights outside expected [0, 1] range: {min_weight}, {max_weight}.")
@@ -173,6 +221,18 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
             "min_weight": min_weight,
             "max_weight": max_weight,
             "per_component": per_component,
+            "weight_sum_final": float(weight_sums.iloc[-1]),
+            "weight_sum_mean": float(weight_sums.mean()),
+            "constraint_weight_mass_final": float(constraint_weight_mass.iloc[-1]),
+            "constraint_weight_mass_mean": float(constraint_weight_mass.mean()),
+            "numeric_distance_weight_final": float(numeric_distance_weight.iloc[-1]),
+            "numeric_distance_weight_mean": float(numeric_distance_weight.mean()),
+            "numeric_distance_to_constraint_ratio_final": float(numeric_distance_to_constraint_ratio.iloc[-1]),
+            "numeric_distance_to_constraint_ratio_mean": float(numeric_distance_to_constraint_ratio.mean()),
+            "teacher_update_l1_mean": teacher_update_l1_mean,
+            "teacher_update_linf_max": teacher_update_linf_max,
+            "floor_hit_rate_by_component": floor_hit_rate_by_component,
+            "cap_hit_rate_by_component": cap_hit_rate_by_component,
         },
         issues,
     )

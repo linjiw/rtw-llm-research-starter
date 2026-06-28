@@ -42,6 +42,16 @@ class VerificationResult:
     error: str | None = None
     contains_open_answer_tag: bool | None = None
     contains_close_answer_tag: bool | None = None
+    numbers_used: tuple[int, ...] = ()
+    number_precision: float = 0.0
+    number_recall: float = 0.0
+    number_multiset_f1: float = 0.0
+    uses_no_extra_numbers: bool = False
+    uses_all_required_numbers: bool = False
+    operator_precision: float = 0.0
+    operator_recall: float = 0.0
+    evaluates_without_exception: bool = False
+    numeric_distance_reward: float = 0.0
 
     def to_components(self, max_chars: int = 600) -> dict[str, float]:
         brevity = 1.0 if len(self.expression) <= max_chars else 0.0
@@ -66,8 +76,17 @@ class VerificationResult:
             "expression_parseable": float(self.parse_ok),
             "uses_numbers": float(self.uses_all_numbers),
             "uses_allowed_numbers": float(self.uses_all_numbers),
+            "number_precision": float(self.number_precision),
+            "number_recall": float(self.number_recall),
+            "number_multiset_f1": float(self.number_multiset_f1),
+            "uses_no_extra_numbers": float(self.uses_no_extra_numbers),
+            "uses_all_required_numbers": float(self.uses_all_required_numbers),
             "allowed_ops": float(self.uses_allowed_ops),
             "uses_allowed_ops": float(self.uses_allowed_ops),
+            "operator_precision": float(self.operator_precision),
+            "operator_recall": float(self.operator_recall),
+            "evaluates_without_exception": float(self.evaluates_without_exception),
+            "numeric_distance_reward": float(self.numeric_distance_reward),
             "valid_expression": float(
                 self.parse_ok and self.uses_all_numbers and self.uses_allowed_ops and self.numeric_ok
             ),
@@ -149,6 +168,53 @@ def _ops_in_ast(node: ast.AST) -> set[str]:
     return ops
 
 
+def _number_match_scores(used: list[int], required: list[int]) -> dict[str, float | bool]:
+    """Dense multiset diagnostics without changing the binary verifier contract."""
+    used_counter = Counter(used)
+    required_counter = Counter(required)
+    matched = sum((used_counter & required_counter).values())
+    precision = matched / max(1, sum(used_counter.values()))
+    recall = matched / max(1, sum(required_counter.values()))
+    f1 = 0.0 if precision + recall == 0.0 else 2 * precision * recall / (precision + recall)
+    return {
+        "number_precision": float(precision),
+        "number_recall": float(recall),
+        "number_multiset_f1": float(f1),
+        "uses_no_extra_numbers": not bool(used_counter - required_counter),
+        "uses_all_required_numbers": not bool(required_counter - used_counter),
+    }
+
+
+def _operator_scores(
+    ops: set[str],
+    allowed_ops: set[str],
+    parse_ok: bool,
+    required_number_count: int,
+) -> dict[str, float]:
+    """Dense operator diagnostics. Countdown requires only allowed ops, not all ops."""
+    if not parse_ok:
+        return {"operator_precision": 0.0, "operator_recall": 0.0}
+    if not ops:
+        score = 1.0 if required_number_count <= 1 else 0.0
+        return {"operator_precision": score, "operator_recall": score}
+    allowed_used = sum(1 for op in ops if op in allowed_ops)
+    fraction = allowed_used / max(1, len(ops))
+    return {"operator_precision": float(fraction), "operator_recall": float(fraction)}
+
+
+def _numeric_distance_reward(
+    value: Fraction | None,
+    target: int,
+    number_multiset_f1: float,
+) -> float:
+    """Dense target-distance reward gated by number legality progress."""
+    if value is None:
+        return 0.0
+    distance = abs(value - Fraction(target, 1))
+    distance_reward = float(Fraction(1, 1) / (Fraction(1, 1) + distance))
+    return float(max(0.0, min(1.0, number_multiset_f1)) * distance_reward)
+
+
 def verify_expression(
     expression: str,
     numbers: list[int],
@@ -196,9 +262,16 @@ def verify_expression(
 
     try:
         nums = _collect_numbers(tree)
+        number_scores = _number_match_scores(nums, numbers)
         uses_all = Counter(nums) == Counter(numbers)
         ops = _ops_in_ast(tree)
-        uses_allowed = ops.issubset(allowed_set)
+        operator_scores = _operator_scores(
+            ops,
+            allowed_set,
+            parse_ok=True,
+            required_number_count=len(numbers),
+        )
+        uses_allowed = ops.issubset(allowed_set) and (bool(ops) or len(numbers) <= 1)
         value = _eval_ast(tree, allowed_set)
         numeric_ok = True
         correct = uses_all and uses_allowed and value == Fraction(target, 1)
@@ -215,14 +288,45 @@ def verify_expression(
             None,
             contains_open_answer_tag,
             contains_close_answer_tag,
+            tuple(nums),
+            float(number_scores["number_precision"]),
+            float(number_scores["number_recall"]),
+            float(number_scores["number_multiset_f1"]),
+            bool(number_scores["uses_no_extra_numbers"]),
+            bool(number_scores["uses_all_required_numbers"]),
+            operator_scores["operator_precision"],
+            operator_scores["operator_recall"],
+            True,
+            _numeric_distance_reward(
+                value,
+                target,
+                float(number_scores["number_multiset_f1"]),
+            ),
         )
     except Exception as exc:  # verifier must be robust to arbitrary model text
+        nums: list[int] = []
+        ops: set[str] = set()
         uses_all = False
         uses_allowed = False
+        number_scores = _number_match_scores(nums, numbers)
+        operator_scores = _operator_scores(
+            ops,
+            allowed_set,
+            parse_ok=True,
+            required_number_count=len(numbers),
+        )
         try:
             nums = _collect_numbers(tree)
+            number_scores = _number_match_scores(nums, numbers)
             uses_all = Counter(nums) == Counter(numbers)
-            uses_allowed = _ops_in_ast(tree).issubset(allowed_set)
+            ops = _ops_in_ast(tree)
+            operator_scores = _operator_scores(
+                ops,
+                allowed_set,
+                parse_ok=True,
+                required_number_count=len(numbers),
+            )
+            uses_allowed = ops.issubset(allowed_set) and (bool(ops) or len(numbers) <= 1)
         except Exception:
             pass
         return VerificationResult(
@@ -237,6 +341,16 @@ def verify_expression(
             str(exc),
             contains_open_answer_tag,
             contains_close_answer_tag,
+            tuple(nums),
+            float(number_scores["number_precision"]),
+            float(number_scores["number_recall"]),
+            float(number_scores["number_multiset_f1"]),
+            bool(number_scores["uses_no_extra_numbers"]) and bool(nums),
+            bool(number_scores["uses_all_required_numbers"]),
+            operator_scores["operator_precision"],
+            operator_scores["operator_recall"],
+            False,
+            0.0,
         )
 
 
