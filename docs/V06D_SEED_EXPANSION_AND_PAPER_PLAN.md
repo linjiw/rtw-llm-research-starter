@@ -26,7 +26,7 @@ Seed-0 deltas for `adaptive_stable_v06c - static_v06b`:
 
 For `reward_hacking_candidate`, lower is better, so negative deltas are good.
 
-## Interpretation
+## Interpretation before seed 1
 
 The stability-constrained teacher did what it was designed to do mechanically:
 
@@ -37,7 +37,7 @@ numeric_distance_reward was capped
 teacher updates were smooth
 ```
 
-Empirically, it moved the adaptive method from “worse than static” to “near-static / sometimes better.” That is paper-useful, but not yet a win.
+Empirically, it moved the adaptive method from “worse than static” to “near-static / sometimes better.” That was paper-useful, but not yet a win.
 
 ## Hypothesis for seed expansion
 
@@ -153,7 +153,7 @@ for SPLIT in validation test_in_dist test_ood_long test_ood_division; do
     --output_dir "outputs/eval_<method>_300_seed1_${SPLIT}" \
     --batch_size 4 \
     --max_new_tokens 64
- done
+done
 ```
 
 Use method names:
@@ -193,29 +193,191 @@ Ambiguous:
   adaptive_stable improves legality but exact_correct drops, or improves ID while worsening OOD-division.
 ```
 
+## Seed-1 training health results
+
+### Static seed 1
+
+Run:
+
+```text
+outputs/grpo_static_v06b_dense_numbers_cuda_pilot_300_seed1
+```
+
+Health artifact:
+
+```text
+outputs/grpo_static_v06b_dense_numbers_cuda_pilot_300_seed1/health_final.txt
+```
+
+Training health:
+
+```text
+reward rows: 4800
+teacher rows: 300
+reward_variance_nonzero_fraction: 1.0
+parseable_expression_rate: 0.7944
+allowed_numbers_rate: 0.2248
+allowed_ops_rate: 0.5869
+valid_expression_rate: 0.2077
+exact_correct_rate: 0.0254
+number_multiset_f1_mean: 0.5408
+issues: none
+```
+
+### adaptive_stable seed 1
+
+Run:
+
+```text
+outputs/grpo_rtw_v06c_adaptive_stable_cuda_pilot_300_seed1
+```
+
+Health artifact:
+
+```text
+outputs/grpo_rtw_v06c_adaptive_stable_cuda_pilot_300_seed1/health_final.txt
+```
+
+Training health:
+
+```text
+reward rows: 4800
+teacher rows: 300
+reward_variance_nonzero_fraction: 1.0
+parseable_expression_rate: 0.8054
+allowed_numbers_rate: 0.2438
+allowed_ops_rate: 0.5821
+valid_expression_rate: 0.2215
+exact_correct_rate: 0.0292
+number_multiset_f1_mean: 0.5524
+issues: none
+```
+
+Final adaptive_stable teacher mechanics:
+
+```text
+last format:                  0.1594
+last valid_expression:        0.2791
+last number_multiset_f1:      0.2044
+last allowed_ops:             0.1977
+last numeric_distance_reward: 0.2000
+last brevity:                 0.1595
+weight_sum_final:             1.2000
+constraint_weight_mass_final: 0.6811
+numeric_distance_ratio_final: 0.2936
+teacher_update_l1_mean:       0.0011
+numeric_distance cap hit rate: 0.7633
+```
+
+## Seed-1 held-out evaluation
+
+| split | method | parse_ok | number_f1 | allowed_numbers | no_extra_numbers | all_required_numbers | allowed_ops | valid_expression | exact_correct | reward_hacking_candidate |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | static_v06b | 0.955 | 0.276 | 0.060 | 0.315 | 0.070 | 0.300 | 0.050 | 0.005 | 0.915 |
+| validation | adaptive_stable_v06c | 0.950 | 0.820 | 0.370 | 0.830 | 0.395 | 0.885 | 0.350 | 0.040 | 0.650 |
+| test_in_dist | static_v06b | 0.920 | 0.291 | 0.045 | 0.280 | 0.055 | 0.330 | 0.045 | 0.005 | 0.885 |
+| test_in_dist | adaptive_stable_v06c | 0.985 | 0.850 | 0.380 | 0.860 | 0.390 | 0.910 | 0.360 | 0.015 | 0.640 |
+| test_ood_long | static_v06b | 1.000 | 0.626 | 0.050 | 0.675 | 0.075 | 0.850 | 0.050 | 0.010 | 0.950 |
+| test_ood_long | adaptive_stable_v06c | 0.995 | 0.708 | 0.055 | 0.810 | 0.080 | 0.950 | 0.050 | 0.015 | 0.950 |
+| test_ood_division | static_v06b | 0.995 | 0.765 | 0.235 | 0.750 | 0.245 | 0.890 | 0.235 | 0.025 | 0.760 |
+| test_ood_division | adaptive_stable_v06c | 1.000 | 0.847 | 0.255 | 0.830 | 0.285 | 0.980 | 0.255 | 0.025 | 0.745 |
+
+Seed-1 deltas for `adaptive_stable_v06c - static_v06b`:
+
+| split | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| validation | +0.300 | +0.035 | -0.265 | +0.310 | +0.544 | +0.585 |
+| test_in_dist | +0.315 | +0.010 | -0.245 | +0.335 | +0.559 | +0.580 |
+| test_ood_long | +0.000 | +0.005 | +0.000 | +0.005 | +0.081 | +0.100 |
+| test_ood_division | +0.020 | +0.000 | -0.015 | +0.020 | +0.082 | +0.090 |
+
+For `reward_hacking_candidate`, lower is better.
+
+## Two-seed aggregate: static vs adaptive_stable
+
+Mean ± population standard deviation across seeds 0 and 1:
+
+### Validation
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.232±0.182 | 0.025±0.020 | 0.750±0.165 | 0.250±0.190 | 0.565±0.289 | 0.593±0.292 |
+| adaptive_stable_v06c | 0.375±0.025 | 0.042±0.002 | 0.625±0.025 | 0.400±0.030 | 0.837±0.017 | 0.890±0.005 |
+
+### Test in-distribution
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.230±0.185 | 0.015±0.010 | 0.735±0.150 | 0.250±0.205 | 0.579±0.288 | 0.610±0.280 |
+| adaptive_stable_v06c | 0.390±0.030 | 0.022±0.007 | 0.610±0.030 | 0.410±0.030 | 0.858±0.008 | 0.913±0.003 |
+
+### OOD-long
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.048±0.003 | 0.013±0.002 | 0.952±0.003 | 0.053±0.002 | 0.680±0.053 | 0.900±0.050 |
+| adaptive_stable_v06c | 0.050±0.000 | 0.015±0.000 | 0.950±0.000 | 0.053±0.002 | 0.716±0.008 | 0.960±0.010 |
+
+### OOD-division
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.270±0.035 | 0.028±0.002 | 0.728±0.033 | 0.270±0.035 | 0.802±0.038 | 0.927±0.037 |
+| adaptive_stable_v06c | 0.275±0.020 | 0.028±0.002 | 0.725±0.020 | 0.275±0.020 | 0.847±0.000 | 0.978±0.003 |
+
+## v0.6d decision
+
+Outcome category: **strong positive for seed-1 tie-breaker; proceed to full 3-seed comparison.**
+
+The seed-1 result is stronger than seed 0 because static_v06b collapsed on validation and in-distribution legality while adaptive_stable_v06c remained stable. This suggests the stability-constrained teacher is not merely matching static; it may reduce seed sensitivity by preserving legality pressure and total auxiliary budget.
+
+However, the paper claim should still remain cautious until seed 2 completes:
+
+> Stability-constrained adaptive reward weighting improves robustness of verifier-harness legality acquisition compared with static shaping in this two-seed pilot, while exact correctness remains low and OOD-long remains unsolved.
+
+## Next experiment: finish 3-seed comparison
+
+Run:
+
+```text
+static_v06b_seed2
+adaptive_stable_v06c_seed2
+```
+
+Use the same commands as seed 1 with `--seed 2` and output dirs:
+
+```text
+outputs/grpo_static_v06b_dense_numbers_cuda_pilot_300_seed2
+outputs/grpo_rtw_v06c_adaptive_stable_cuda_pilot_300_seed2
+outputs/eval_static_v06b_300_seed2_${SPLIT}
+outputs/eval_rtw_v06c_adaptive_stable_300_seed2_${SPLIT}
+```
+
+If seed 2 is consistent with seed 1 or the two-seed mean, the paper can use a three-seed main table for static vs adaptive_stable and keep naive adaptive as a diagnostic ablation.
+
 ## Paper-improvement plan after seed 1
 
-### If seed 1 is strong or moderate positive
+### Current paper claim after seed 1
 
-Run full 3-seed comparison:
+The paper should now shift from “adaptive closes the gap” to a stronger but still careful claim:
+
+> A naive adaptive RTW teacher underperforms static shaping, but a stability-constrained adaptive teacher improves robustness and reduces seed sensitivity in verifier-based LLM harness acquisition.
+
+This is more compelling than the seed-0-only story because it adds a stability/variance argument, not only a mean-performance argument.
+
+### If seed 2 confirms
+
+Run or report:
 
 ```text
 static seeds 0,1,2
 adaptive_stable seeds 0,1,2
+naive adaptive seed 0 as failure-mode ablation
 ```
 
-Then add:
+Then add manual/random only if needed for reviewer-facing completeness.
 
-```text
-adaptive naive seeds 0,1,2 only if needed for ablation narrative
-manual/random only after static/adaptive_stable story is stable
-```
-
-Paper claim should be cautious:
-
-> Stability-constrained adaptive reward weighting can match or improve static shaping on selected verifier-harness legality metrics, while naive adaptive weighting underperforms.
-
-### If seed 1 is negative
+### If seed 2 contradicts
 
 Do not tune more floors/caps. Move to a better teacher design:
 
@@ -233,7 +395,7 @@ The paper should be written around the actual finding sequence:
 3. **Wind tunnel:** Countdown verifier harness with decomposed legality signals.
 4. **Finding 1:** Dense legality rewards convert zero harness behavior into partial legality.
 5. **Finding 2:** Naive adaptive weighting underperforms static due to teacher instability.
-6. **Finding 3:** Stability constraints close much of the gap and may improve selected gates.
+6. **Finding 3:** Stability-constrained adaptive weighting improves robustness and may reduce seed sensitivity.
 7. **Limit:** Exact correctness remains low; OOD-long remains unsolved.
 8. **Next:** More robust teacher state, then GACL task curriculum.
 
@@ -241,10 +403,10 @@ This is a stronger paper than a forced success story because it exposes the desi
 
 ## Done criteria for v0.6d
 
-- [ ] static seed-1 training health exists.
-- [ ] adaptive_stable seed-1 training health exists.
-- [ ] four split evals exist for both methods.
-- [ ] comparison table is added to this doc.
-- [ ] decision is recorded: full 3-seed expansion vs teacher redesign.
-- [ ] tests and ruff remain passing.
+- [x] static seed-1 training health exists.
+- [x] adaptive_stable seed-1 training health exists.
+- [x] four split evals exist for both methods.
+- [x] comparison table is added to this doc.
+- [x] decision is recorded: full 3-seed expansion vs teacher redesign.
+- [x] tests and ruff remain passing.
 - [ ] results doc is committed.
