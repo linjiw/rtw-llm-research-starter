@@ -401,6 +401,96 @@ The paper should be written around the actual finding sequence:
 
 This is a stronger paper than a forced success story because it exposes the design constraints needed for adaptive reward control to work.
 
+
+
+## Seed-2 held-out evaluation
+
+| split | method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---|---:|---:|---:|---:|---:|---:|
+| validation | static_v06b | 0.290 | 0.035 | 0.710 | 0.315 | 0.855 | 0.895 |
+| validation | adaptive_stable_v06c | 0.430 | 0.055 | 0.570 | 0.435 | 0.845 | 0.920 |
+| test_in_dist | static_v06b | 0.320 | 0.060 | 0.680 | 0.360 | 0.865 | 0.895 |
+| test_in_dist | adaptive_stable_v06c | 0.420 | 0.015 | 0.580 | 0.430 | 0.860 | 0.925 |
+| test_ood_long | static_v06b | 0.065 | 0.015 | 0.935 | 0.070 | 0.721 | 0.945 |
+| test_ood_long | adaptive_stable_v06c | 0.035 | 0.015 | 0.965 | 0.035 | 0.726 | 0.970 |
+| test_ood_division | static_v06b | 0.370 | 0.025 | 0.630 | 0.370 | 0.879 | 0.995 |
+| test_ood_division | adaptive_stable_v06c | 0.245 | 0.030 | 0.755 | 0.245 | 0.847 | 0.970 |
+
+For `reward_hacking_candidate`, lower is better.
+
+## Final 3-seed aggregate: static vs adaptive_stable
+
+Mean ± population standard deviation across seeds 0, 1, and 2.
+
+### Validation
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.252±0.151 | 0.028±0.017 | 0.737±0.136 | 0.272±0.158 | 0.661±0.272 | 0.693±0.278 |
+| adaptive_stable_v06c | 0.393±0.033 | 0.047±0.006 | 0.607±0.033 | 0.412±0.030 | 0.840±0.015 | 0.900±0.015 |
+
+### Test in-distribution
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.260±0.157 | 0.030±0.023 | 0.717±0.125 | 0.287±0.175 | 0.675±0.271 | 0.705±0.265 |
+| adaptive_stable_v06c | 0.400±0.028 | 0.020±0.007 | 0.600±0.028 | 0.417±0.026 | 0.859±0.007 | 0.917±0.006 |
+
+### OOD-long
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.053±0.008 | 0.013±0.002 | 0.947±0.008 | 0.058±0.008 | 0.693±0.048 | 0.915±0.046 |
+| adaptive_stable_v06c | 0.045±0.007 | 0.015±0.000 | 0.955±0.007 | 0.047±0.008 | 0.719±0.008 | 0.963±0.009 |
+
+### OOD-division
+
+| method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops |
+|---|---:|---:|---:|---:|---:|---:|
+| static_v06b | 0.303±0.055 | 0.027±0.002 | 0.695±0.053 | 0.303±0.055 | 0.828±0.047 | 0.950±0.044 |
+| adaptive_stable_v06c | 0.265±0.022 | 0.028±0.002 | 0.735±0.022 | 0.265±0.022 | 0.847±0.000 | 0.975±0.004 |
+
+## Final v0.6d decision
+
+Outcome category: **positive but scoped**.
+
+The 3-seed result supports the central paper point that stability-constrained adaptive reward weighting is more robust than static shaping for in-distribution legality acquisition. It does **not** support a blanket claim that adaptive_stable dominates static on every split.
+
+Main positives:
+
+```text
+validation valid_expression:        +0.142 mean delta
+validation exact_correct:           +0.018 mean delta
+validation reward_hacking_candidate -0.130 mean delta
+in-dist valid_expression:           +0.140 mean delta
+in-dist reward_hacking_candidate:   -0.117 mean delta
+```
+
+Main caveats:
+
+```text
+in-dist exact_correct is lower for adaptive_stable by -0.010 mean delta
+OOD-long remains unsolved and slightly worse on legality/reward-hacking
+OOD-division favors static on valid_expression/reward_hacking_candidate
+exact_correct remains low overall
+```
+
+The paper should therefore claim:
+
+> Stability-constrained adaptive reward weighting substantially improves in-distribution legality robustness and reduces seed sensitivity relative to static shaping in a verifier-based Countdown harness, but it does not solve exact correctness or OOD generalization.
+
+## Recommended next paper step
+
+Do **not** add more reward micro-tuning before writing the paper skeleton. The result is now coherent enough for a paper draft:
+
+1. Use static vs adaptive_stable 3-seed tables as the main result.
+2. Use naive adaptive seed 0 as the failure-mode ablation showing why teacher stabilization matters.
+3. Include teacher-weight trajectories as mechanistic evidence.
+4. Treat OOD-long and OOD-division as honest limitations.
+5. Put GACL / curriculum as future work unless a separate, controlled experiment is started.
+
+If one more experiment is needed before drafting, prefer a **diagnostic prompt/length ablation** over another teacher-weight tweak, because completions remain max-length clipped and exact correctness is still low.
+
 ## Done criteria for v0.6d
 
 - [x] static seed-1 training health exists.
@@ -409,4 +499,4 @@ This is a stronger paper than a forced success story because it exposes the desi
 - [x] comparison table is added to this doc.
 - [x] decision is recorded: full 3-seed expansion vs teacher redesign.
 - [x] tests and ruff remain passing.
-- [ ] results doc is committed.
+- [x] results doc is committed.
