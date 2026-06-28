@@ -281,4 +281,4 @@ Recommended v0.8 design:
 - [x] Decision recorded: expand diagnostic or move to paper draft.
 - [x] `docs/PAPER_OUTLINE.md` created.
 - [x] Tests and ruff pass.
-- [ ] Docs committed.
+- [x] Docs committed.
