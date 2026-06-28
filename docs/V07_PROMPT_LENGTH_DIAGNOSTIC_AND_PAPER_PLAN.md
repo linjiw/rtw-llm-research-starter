@@ -163,11 +163,122 @@ Required limitations:
 - inference prompt/length diagnostics are not new trained methods;
 - sample size remains small.
 
+
+
+## Stage-1 actual execution note
+
+The original full Stage-1 matrix was intentionally stopped after it became too slow for an interactive iteration. A focused finishable diagnostic was run instead:
+
+```text
+method: adaptive_stable_v06c seed2
+splits: validation, test_in_dist
+prompt_fields: prompt_high, prompt
+max_new_tokens: 32, 64
+```
+
+Partial static diagnostics from the stopped broad run were also inspected for prompt sensitivity.
+
+## v0.7A focused diagnostic results
+
+Adaptive_stable seed2 prompt/length results:
+
+| split | prompt | tok | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops | parse_ok |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | prompt_high | 32 | 0.430 | 0.055 | 0.570 | 0.435 | 0.845 | 0.920 | 0.960 |
+| validation | prompt_high | 64 | 0.430 | 0.055 | 0.570 | 0.435 | 0.845 | 0.920 | 0.960 |
+| validation | prompt | 32 | 0.430 | 0.055 | 0.570 | 0.435 | 0.845 | 0.920 | 0.960 |
+| validation | prompt | 64 | 0.430 | 0.055 | 0.570 | 0.435 | 0.845 | 0.920 | 0.960 |
+| test_in_dist | prompt_high | 32 | 0.420 | 0.015 | 0.580 | 0.430 | 0.860 | 0.925 | 0.990 |
+| test_in_dist | prompt_high | 64 | 0.420 | 0.015 | 0.580 | 0.430 | 0.860 | 0.925 | 0.990 |
+| test_in_dist | prompt | 32 | 0.420 | 0.015 | 0.580 | 0.430 | 0.860 | 0.925 | 0.990 |
+| test_in_dist | prompt | 64 | 0.420 | 0.015 | 0.580 | 0.430 | 0.860 | 0.925 | 0.990 |
+
+Interpretation:
+
+```text
+Shorter decoding from 64 to 32 tokens did not change metrics for the normal/high prompts.
+The prompt and prompt_high fields are effectively equivalent for these checkpoints.
+This means the remaining exact-correctness bottleneck is not fixed by simple inference-time length truncation or by switching between the two high-information harness prompts.
+```
+
+Partial static prompt-sensitivity findings from the stopped broad run:
+
+```text
+prompt_low collapsed to all-zero metrics because it does not enforce the answer-tag contract.
+prompt_mid produced almost no valid expressions and high reward-hacking rates at longer lengths.
+prompt_high and prompt matched canonical static seed2 validation metrics exactly across 32/64/128 tokens.
+```
+
+This suggests the model has learned a narrow verifier-compatible harness contract: it needs the explicit high-information answer-tag prompt, but within that contract, 32 vs 64 tokens does not explain the exact-correctness bottleneck.
+
+## Failure taxonomy diagnostic
+
+Implemented:
+
+```text
+scripts/06_failure_taxonomy.py
+```
+
+Validated by:
+
+```text
+uv run pytest -q
+uv run ruff check .
+```
+
+Output artifact:
+
+```text
+outputs/v07a_failure_taxonomy_seed2.json
+```
+
+Seed2 failure taxonomy on validation/test_in_dist:
+
+| run | exact_correct | legal_but_wrong_value | missing_required_number | illegal_extra_or_repeated_number | parse_failure | illegal_operator | evaluation_error |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| adaptive_stable validation | 0.055 | 0.375 | 0.390 | 0.135 | 0.040 | 0.000 | 0.005 |
+| adaptive_stable test_in_dist | 0.015 | 0.405 | 0.395 | 0.165 | 0.010 | 0.010 | 0.000 |
+| static validation | 0.035 | 0.255 | 0.490 | 0.195 | 0.000 | 0.025 | 0.000 |
+| static test_in_dist | 0.060 | 0.260 | 0.475 | 0.165 | 0.000 | 0.040 | 0.000 |
+
+Key bottleneck:
+
+```text
+The largest failure buckets are missing_required_number and legal_but_wrong_value.
+So the next experiment should not be another prompt/length tweak. It should target:
+  1. using every required number exactly once;
+  2. converting legal-but-wrong expressions into exact target solutions.
+```
+
+## v0.7 decision
+
+Outcome: **diagnostic negative for prompt/length as a quick fix, positive for paper clarity.**
+
+Do not expand v0.7 across all seeds. Use v0.7 as a limitation/failure-analysis result in the paper.
+
+Next implementation/experiment direction:
+
+```text
+v0.8 should target the dominant failure modes directly:
+  - missing required numbers;
+  - legal but wrong target value;
+  - answer discipline/termination only as a secondary issue.
+```
+
+Recommended v0.8 design:
+
+1. Add a failure-taxonomy table to the paper.
+2. Add a controlled training variant only if it changes one variable at a time.
+3. Prefer a two-phase or conditional reward design:
+   - phase A: enforce exact number multiset completion;
+   - phase B: after number legality is high, increase target/exactness pressure.
+4. Preserve strict verifier correctness and all v0.6d baselines.
+
 ## Done criteria
 
-- [ ] Stage-1 prompt/length probe completed.
-- [ ] Stage-1 results summarized in this doc.
-- [ ] Decision recorded: expand diagnostic or move to paper draft.
-- [ ] `docs/PAPER_OUTLINE.md` created.
-- [ ] Tests and ruff pass.
+- [x] Stage-1 prompt/length probe completed.
+- [x] Stage-1 results summarized in this doc.
+- [x] Decision recorded: expand diagnostic or move to paper draft.
+- [x] `docs/PAPER_OUTLINE.md` created.
+- [x] Tests and ruff pass.
 - [ ] Docs committed.
