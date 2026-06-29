@@ -127,6 +127,98 @@ def test_adaptive_stable_numeric_distance_cap_is_respected():
     assert teacher.history[-1]["diagnostics"]["numeric_distance_to_constraint_ratio"] <= 0.45
 
 
+def test_adaptive_phased_starts_in_phase_a_with_stricter_number_floor():
+    teacher = RTWTeacher(TeacherConfig(strategy="adaptive_phased", stable_delay_steps=0))
+    batch = [
+        {
+            "correct": 0.0,
+            "format": 1.0,
+            "valid_expression": 0.0,
+            "number_multiset_f1": 0.0,
+            "allowed_ops": 1.0,
+            "numeric_distance_reward": 1.0,
+            "brevity": 1.0,
+        }
+        for _ in range(8)
+    ]
+    teacher.update(batch)
+    weights = teacher.get_weights()
+    diagnostics = teacher.history[-1]["diagnostics"]
+    assert diagnostics["teacher_phase"] == "A"
+    assert weights["number_multiset_f1"] >= 0.28
+    assert weights["valid_expression"] >= 0.22
+    assert weights["numeric_distance_reward"] <= 0.16 + 1e-9
+
+
+def test_adaptive_phased_enters_phase_b_after_dwell_and_raises_numeric_cap():
+    teacher = RTWTeacher(
+        TeacherConfig(
+            strategy="adaptive_phased",
+            stable_delay_steps=0,
+            phased_min_dwell_updates=2,
+        )
+    )
+    good_batch = [
+        {
+            "correct": 0.0,
+            "format": 1.0,
+            "valid_expression": 1.0,
+            "number_multiset_f1": 1.0,
+            "allowed_ops": 1.0,
+            "numeric_distance_reward": 0.0,
+            "brevity": 1.0,
+        }
+        for _ in range(8)
+    ]
+    for _ in range(50):
+        teacher.update(good_batch)
+    diagnostics = teacher.history[-1]["diagnostics"]
+    assert diagnostics["teacher_phase"] == "B"
+    assert diagnostics["phase_flip_count"] == 1
+    assert teacher.get_weights()["numeric_distance_reward"] <= 0.25 + 1e-9
+
+
+def test_adaptive_phased_hysteresis_prevents_immediate_phase_flip_back():
+    teacher = RTWTeacher(
+        TeacherConfig(
+            strategy="adaptive_phased",
+            stable_delay_steps=0,
+            phased_min_dwell_updates=3,
+            ema_beta=0.0,
+        )
+    )
+    good_batch = [
+        {
+            "correct": 0.0,
+            "format": 1.0,
+            "valid_expression": 1.0,
+            "number_multiset_f1": 1.0,
+            "allowed_ops": 1.0,
+            "numeric_distance_reward": 0.0,
+            "brevity": 1.0,
+        }
+    ]
+    bad_batch = [
+        {
+            "correct": 0.0,
+            "format": 1.0,
+            "valid_expression": 0.0,
+            "number_multiset_f1": 0.0,
+            "allowed_ops": 1.0,
+            "numeric_distance_reward": 1.0,
+            "brevity": 1.0,
+        }
+    ]
+    for _ in range(3):
+        teacher.update(good_batch)
+    assert teacher.history[-1]["diagnostics"]["teacher_phase"] == "B"
+    teacher.update(bad_batch)
+    assert teacher.history[-1]["diagnostics"]["teacher_phase"] == "B"
+    for _ in range(2):
+        teacher.update(bad_batch)
+    assert teacher.history[-1]["diagnostics"]["teacher_phase"] == "A"
+
+
 def test_adaptive_stable_weight_budget_is_preserved_and_logged():
     teacher = RTWTeacher(TeacherConfig(strategy="adaptive_stable", stable_delay_steps=0))
     batch = [

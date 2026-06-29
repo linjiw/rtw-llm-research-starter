@@ -211,6 +211,50 @@ prompt_high and prompt matched canonical static seed2 validation metrics exactly
 
 This suggests the model has learned a narrow verifier-compatible harness contract: it needs the explicit high-information answer-tag prompt, but within that contract, 32 vs 64 tokens does not explain the exact-correctness bottleneck.
 
+
+
+## v0.7A raw-output audit
+
+A tiny audit was run to protect the causal story and verify that the prompt/length ablation was actually changing what it claimed to change.
+
+Audit command shape:
+
+```text
+5 validation examples
+adaptive_stable seed2
+prompt_high vs prompt
+max_new_tokens 32 vs 64
+print prompt hash, generation hash, extracted expression, and metrics
+```
+
+Output directories:
+
+```text
+outputs/audit_v07_promptlen_seed2_validation5_prompt_high_tok32
+outputs/audit_v07_promptlen_seed2_validation5_prompt_high_tok64
+outputs/audit_v07_promptlen_seed2_validation5_prompt_tok32
+outputs/audit_v07_promptlen_seed2_validation5_prompt_tok64
+```
+
+Audit result:
+
+```text
+prompt_high and prompt have identical prompt hashes for these data rows.
+raw generation hashes are identical across tok32 and tok64.
+extracted expressions and metrics are identical.
+```
+
+Interpretation:
+
+```text
+The equality in v0.7A was not caused by output-dir reuse or ignored max_new_tokens.
+For the current generated dataset, `prompt` and `prompt_high` are the same high-information prompt field. The generated answers terminate before 32 new tokens for the audited examples, so 32 vs 64 does not change the extracted answer. The v0.7A conclusion should therefore be scoped as:
+
+  high-information prompt variants and simple 32/64 decode limits do not explain the remaining exactness bottleneck.
+
+It should not be overclaimed as evidence that all prompt engineering or all termination-control methods are irrelevant.
+```
+
 ## Failure taxonomy diagnostic
 
 Implemented:

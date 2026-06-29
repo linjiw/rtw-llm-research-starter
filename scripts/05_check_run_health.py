@@ -185,6 +185,7 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
 
     floor_hit_rate_by_component: dict[str, float] = {}
     cap_hit_rate_by_component: dict[str, float] = {}
+    phase_summary: dict[str, float | int | str | None] = {}
     if "diagnostics" in df:
         diagnostics = pd.json_normalize(df["diagnostics"])
         for column in diagnostics.columns:
@@ -192,6 +193,21 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
                 floor_hit_rate_by_component[column.split(".", 1)[1]] = float(diagnostics[column].fillna(False).mean())
             if column.startswith("cap_hits."):
                 cap_hit_rate_by_component[column.split(".", 1)[1]] = float(diagnostics[column].fillna(False).mean())
+        if "teacher_phase" in diagnostics:
+            phases = diagnostics["teacher_phase"].dropna().astype(str)
+            if not phases.empty:
+                phase_summary = {
+                    "phase_final": phases.iloc[-1],
+                    "phase_a_fraction": float((phases == "A").mean()),
+                    "phase_b_fraction": float((phases == "B").mean()),
+                }
+        if "phase_flip_count" in diagnostics:
+            phase_summary["phase_flip_count_final"] = int(diagnostics["phase_flip_count"].fillna(0).iloc[-1])
+        if "phase_switch_step" in diagnostics:
+            nonnull_switches = diagnostics["phase_switch_step"].dropna()
+            phase_summary["phase_switch_step_final"] = (
+                int(nonnull_switches.iloc[-1]) if not nonnull_switches.empty else None
+            )
 
     per_component = {
         column: {
@@ -233,6 +249,7 @@ def summarize_teacher_weights(path: Path) -> tuple[dict, list[str]]:
             "teacher_update_linf_max": teacher_update_linf_max,
             "floor_hit_rate_by_component": floor_hit_rate_by_component,
             "cap_hit_rate_by_component": cap_hit_rate_by_component,
+            "phase_summary": phase_summary,
         },
         issues,
     )

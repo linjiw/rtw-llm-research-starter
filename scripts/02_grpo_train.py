@@ -23,7 +23,7 @@ def main() -> None:
     parser.add_argument("--output_dir", default="outputs/grpo_rtw_qwen05b")
     parser.add_argument(
         "--reward_strategy",
-        choices=["adaptive", "adaptive_stable", "static", "manual", "random"],
+        choices=["adaptive", "adaptive_stable", "adaptive_phased", "static", "manual", "random"],
         default="adaptive",
     )
     parser.add_argument("--max_steps", type=int, default=300)

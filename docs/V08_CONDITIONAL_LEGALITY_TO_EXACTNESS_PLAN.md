@@ -62,7 +62,7 @@ Do not change:
 Add a new reward strategy:
 
 ```text
-adaptive_phased
+adaptive_phased  # paper name: Phased-RTW
 ```
 
 Keep old strategies unchanged:
@@ -75,7 +75,7 @@ manual
 random
 ```
 
-### Phase logic
+### Phase logic with hysteresis
 
 Use moving-average diagnostics already available to the teacher.
 
@@ -92,12 +92,25 @@ behavior:
 Phase B: exactness pressure
 
 ```text
-condition: number_multiset_f1 EMA >= 0.80 AND valid_expression EMA >= 0.35
+enter condition: number_multiset_f1 EMA >= 0.80 AND valid_expression EMA >= 0.35
 behavior:
   preserve legality floors
   allow numeric_distance_reward up to 0.25
   increase exactness-oriented pressure only after legal expression construction is stable
 ```
+
+
+
+Hysteresis:
+
+```text
+enter Phase B only after the enter condition holds for K teacher updates
+return to Phase A only if:
+  number_multiset_f1 EMA < 0.75 OR valid_expression EMA < 0.30
+  for K teacher updates
+```
+
+This prevents phase oscillation and makes the experiment interpretable.
 
 Important: exact correctness remains the primary verifier reward in both phases.
 
@@ -226,6 +239,9 @@ Primary win condition:
 validation exact_correct improves by >= +0.02 absolute
 AND validation valid_expression does not drop by more than -0.03
 AND missing_required_number failure rate decreases
+AND reward_hacking_candidate does not increase by more than +0.03
+AND number_multiset_f1 does not drop by more than -0.03
+AND reward_variance_nonzero_fraction remains healthy
 ```
 
 Secondary win condition:
@@ -257,8 +273,8 @@ Stable-RTW solves legal-action-space robustness better than static shaping, but 
 
 ## Done criteria
 
-- [ ] `adaptive_phased` implemented without changing existing strategies.
-- [ ] tests added and passing.
+- [x] `adaptive_phased` implemented without changing existing strategies.
+- [x] tests added and passing.
 - [ ] 100-step smoke completed and health-checked.
 - [ ] 300-step pilot completed only if smoke passes.
 - [ ] fixed evals completed.
