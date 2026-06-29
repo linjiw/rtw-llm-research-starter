@@ -452,6 +452,10 @@ test_in_dist: static and Stable used identical 50 task IDs
 | test_in_dist | oracle | 4 | 2 | 1 | 43 |
 | test_in_dist | practical | 4 | 2 | 1 | 43 |
 
+### Paired uncertainty
+
+The N=8 paired table should be treated as a mechanism diagnostic, not a benchmark-scale significance result. Validation has a suggestive paired advantage for Stable-RTW (`Stable-only=4`, `static-only=0`), but only four discordant examples; an exact two-sided McNemar/binomial test gives `p=0.125`, so this should be described as a **suggestive paired advantage**, not a statistically significant win. Test-in-distribution is clearly mixed/noisy (`Stable-only=2`, `static-only=1`; exact two-sided McNemar/binomial `p=1.0`).
+
 ### Sanity audit
 
 Stable-RTW oracle/practical agreement was confirmed directly from the candidate banks:
@@ -472,4 +476,25 @@ This is closest to **Case 1 on validation** and a mixed **Case 1/3 on test_in_di
 
 Overall interpretation: v0.9 remains a real positive signal for Stable-RTW, especially on validation, but the static control shows that verifier-guided best-of-N is also a broader harness effect. The strongest safe claim is that Stable-RTW creates a more useful candidate distribution on validation and remains competitive-to-slightly-better at N=8 on test_in_dist, while both policies can expose latent exact candidates under sampling.
 
-Cost note: static generated substantially more tokens and took longer than Stable at the same N=8 budget in this run, so report sample budget, wall-clock, and cost-per-exact with any exactness claim.
+Cost note: best-of-N increases inference-time compute and should be reported with sampling budget, generated tokens, wall-clock, and cost-per-exact. In this diagnostic, static generated more tokens and took longer than Stable at the same nominal N=8 budget, but this should **not** yet be framed as an intrinsic method-specific cost claim. The static/Stable wall-clock comparison is confounded by run conditions such as batch size, cache/loading state, adapter loading path, process state, and GPU utilization. The safe paper claim is that sampling and selection are part of the harness cost; a stronger claim that static is intrinsically more expensive would require a dedicated cost audit.
+
+### Paper-ready v0.9 wording
+
+We next tested whether exact solutions were latent in the policy distribution and could be recovered by inference-time harness selection. Using frozen checkpoints, we sampled up to eight candidates per task and applied a fixed non-oracle reranker based on expression validity, number legality, number multiset F1, operator legality, numeric distance, and reward-hacking penalty. On validation, Stable-RTW improved from 0/50 exact at N=1 to 7/50 exact at N=8, compared with 3/50 for static shaping; all static successes were contained within the Stable-RTW success set. On test-in-distribution, both methods benefited from best-of-N, with Stable-RTW reaching 6/50 exact at N=8 and static reaching 5/50. The practical reranker matched oracle exact@N in these diagnostics without using exact correctness as an input. These results suggest that verifier-guided candidate selection can convert latent exact candidates into task success, but also show that best-of-N is a broader harness effect rather than an exclusively Stable-RTW-specific improvement.
+
+### Recommended next step
+
+Run one controlled seed expansion before adding OOD splits:
+
+```text
+static_v06b seed0/1/2
+Stable-RTW seed0/1/2
+validation + test_in_dist
+limit: 50
+N: 1,4,8
+same task IDs
+same decoding config
+same selector
+```
+
+Report `mean ± std`, paired deltas, Stable-only/static-only overlap, cost-per-exact, and tokens-per-exact. Only after this seed expansion should v0.9 move to `test_ood_long` and `test_ood_division`.
