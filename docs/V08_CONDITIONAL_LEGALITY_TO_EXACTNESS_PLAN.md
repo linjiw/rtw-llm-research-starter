@@ -280,3 +280,165 @@ Stable-RTW solves legal-action-space robustness better than static shaping, but 
 - [ ] fixed evals completed.
 - [ ] failure taxonomy compared to v0.6d.
 - [ ] decision recorded and committed.
+
+
+## v0.8 seed0 300-step pilot result
+
+Status: **completed and evaluated**.
+
+Run:
+
+```text
+outputs/grpo_rtw_v08_adaptive_phased_cuda_pilot_300_seed0
+```
+
+Health artifact:
+
+```text
+outputs/grpo_rtw_v08_adaptive_phased_cuda_pilot_300_seed0/health_final.txt
+```
+
+Eval artifacts:
+
+```text
+outputs/eval_rtw_v08_adaptive_phased_300_seed0_validation
+outputs/eval_rtw_v08_adaptive_phased_300_seed0_test_in_dist
+outputs/eval_rtw_v08_adaptive_phased_300_seed0_test_ood_long
+outputs/eval_rtw_v08_adaptive_phased_300_seed0_test_ood_division
+```
+
+Failure taxonomy comparison:
+
+```text
+outputs/v08_failure_taxonomy_seed0_compare.json
+```
+
+### Training health
+
+| metric | value |
+|---|---:|
+| reward rows | 4800 |
+| teacher rows | 300 |
+| reward_variance_nonzero_fraction | 1.0000 |
+| parseable_expression_rate | 0.7979 |
+| allowed_numbers_rate | 0.2554 |
+| allowed_ops_rate | 0.5840 |
+| valid_expression_rate | 0.2340 |
+| exact_correct_rate | 0.0285 |
+| number_multiset_f1_mean | 0.5515 |
+| issues | none |
+
+Teacher diagnostics:
+
+| metric | value |
+|---|---:|
+| phase_final | B |
+| phase_a_fraction | 0.94 |
+| phase_b_fraction | 0.06 |
+| phase_switch_step_final | 282 |
+| phase_flip_count_final | 1 |
+| weight_sum_final | 1.2000 |
+| constraint_weight_mass_final | 0.7135 |
+| numeric_distance_weight_final | 0.1924 |
+| numeric_distance_to_constraint_ratio_final | 0.2697 |
+| teacher_update_l1_mean | 0.0018 |
+
+Interpretation: Phase B **did activate**, but only very late, at teacher step 282. Therefore this run mostly tested a stronger legality-first teacher, with only a short exactness-pressure tail.
+
+### Four-split evaluation: seed0
+
+| split | method | valid_expression | exact_correct | reward_hacking_candidate | allowed_numbers | number_f1 | allowed_ops | uses_all_required | uses_no_extra |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | static_v06b | 0.415 | 0.045 | 0.585 | 0.440 | 0.853 | 0.885 | 0.470 | 0.835 |
+| validation | Stable-RTW | 0.400 | 0.045 | 0.600 | 0.430 | 0.855 | 0.895 | 0.455 | 0.860 |
+| validation | Phased-RTW | 0.370 | 0.045 | 0.630 | 0.395 | 0.835 | 0.880 | 0.425 | 0.835 |
+| test_in_dist | static_v06b | 0.415 | 0.025 | 0.585 | 0.455 | 0.867 | 0.890 | 0.495 | 0.805 |
+| test_in_dist | Stable-RTW | 0.420 | 0.030 | 0.580 | 0.440 | 0.866 | 0.915 | 0.450 | 0.840 |
+| test_in_dist | Phased-RTW | 0.380 | 0.025 | 0.620 | 0.400 | 0.847 | 0.890 | 0.410 | 0.825 |
+| test_ood_long | static_v06b | 0.045 | 0.015 | 0.955 | 0.055 | 0.733 | 0.950 | 0.075 | 0.750 |
+| test_ood_long | Stable-RTW | 0.050 | 0.015 | 0.950 | 0.050 | 0.724 | 0.970 | 0.065 | 0.795 |
+| test_ood_long | Phased-RTW | 0.030 | 0.015 | 0.970 | 0.030 | 0.715 | 0.965 | 0.045 | 0.825 |
+| test_ood_division | static_v06b | 0.305 | 0.030 | 0.695 | 0.305 | 0.840 | 0.965 | 0.330 | 0.715 |
+| test_ood_division | Stable-RTW | 0.295 | 0.030 | 0.705 | 0.295 | 0.847 | 0.975 | 0.325 | 0.770 |
+| test_ood_division | Phased-RTW | 0.225 | 0.025 | 0.775 | 0.225 | 0.837 | 0.980 | 0.245 | 0.810 |
+
+### Phased-RTW delta vs Stable-RTW
+
+| split | Δ valid_expression | Δ exact_correct | Δ reward_hacking_candidate | Δ allowed_numbers | Δ number_f1 | Δ uses_all_required |
+|---|---:|---:|---:|---:|---:|---:|
+| validation | -0.030 | +0.000 | +0.030 | -0.035 | -0.020 | -0.030 |
+| test_in_dist | -0.040 | -0.005 | +0.040 | -0.040 | -0.019 | -0.040 |
+| test_ood_long | -0.020 | +0.000 | +0.020 | -0.020 | -0.009 | -0.020 |
+| test_ood_division | -0.070 | -0.005 | +0.070 | -0.070 | -0.010 | -0.080 |
+
+For reward_hacking_candidate, positive deltas are worse.
+
+### Failure taxonomy: in-distribution splits
+
+| split | method | missing_required_number | illegal_extra_or_repeated_number | legal_but_wrong_value | exact_correct |
+|---|---|---:|---:|---:|---:|
+| validation | static_v06b | 0.395 | 0.125 | 0.370 | 0.045 |
+| validation | Stable-RTW | 0.430 | 0.105 | 0.355 | 0.045 |
+| validation | Phased-RTW | 0.440 | 0.115 | 0.325 | 0.045 |
+| test_in_dist | static_v06b | 0.350 | 0.175 | 0.390 | 0.025 |
+| test_in_dist | Stable-RTW | 0.400 | 0.155 | 0.390 | 0.030 |
+| test_in_dist | Phased-RTW | 0.425 | 0.155 | 0.355 | 0.025 |
+
+### Decision against pre-registered v0.8 gate
+
+Gate:
+
+```text
+exact_correct +0.02 absolute or better
+valid_expression drop <= 0.03
+number_multiset_f1 drop <= 0.03
+missing_required_number decreases
+reward_hacking_candidate does not materially worsen
+reward_variance_nonzero_fraction remains healthy
+```
+
+Outcome: **gate failed**.
+
+Evidence:
+
+- exact_correct did not improve over Stable-RTW on validation: `+0.000`.
+- exact_correct was worse on test_in_dist and test_ood_division: `-0.005`.
+- validation valid_expression drop was at the allowed boundary: `-0.030`.
+- test_in_dist and test_ood_division valid_expression dropped beyond the gate: `-0.040`, `-0.070`.
+- missing_required_number did not decrease; it increased on validation and test_in_dist vs Stable-RTW.
+- reward_hacking_candidate worsened on every split.
+- reward variance remained healthy.
+
+### v0.8 case classification
+
+This is closest to **Case 2 / Case 3 hybrid**:
+
+```text
+Phase B activated late.
+Legality mostly did not hold relative to Stable-RTW.
+Exact correctness stayed flat or slightly worsened.
+```
+
+Because Phase B activated only for the final 6% of teacher updates, the clean interpretation is:
+
+> Phased-RTW as configured mostly behaves as a stricter legality-first teacher. It reaches the exactness phase late, but the short Phase-B tail does not improve exact correctness and slightly weakens held-out legality/reward-hacking metrics relative to Stable-RTW.
+
+### Scientific conclusion
+
+Do **not** promote Phased-RTW to the main method.
+
+This pilot is useful as a negative causal probe:
+
+> Scalar reward phasing alone does not convert Stable-RTW's legal action-space acquisition into exact target success under this 300-step budget. The remaining exactness bottleneck likely requires mechanisms beyond reward weighting, such as verifier-guided candidate search, best-of-n reranking, exact-solver trace SFT, or curriculum over expression length/target distance.
+
+### Recommended next step
+
+Stop reward-teacher micro-tuning for the main paper. Keep Stable-RTW as the main contribution and use v0.8 as a limitation/follow-up probe.
+
+If we run one more experiment, it should not be another scalar reward schedule. The best next controlled experiment is:
+
+```text
+verifier-guided best-of-n reranking over Stable-RTW generations
+```
+
+Reason: the model often generates parseable, high-number-F1, legal-but-wrong or near-legal expressions. Reranking/search tests whether the learned policy has useful candidates latent in its distribution that a harness-level verifier can select, without changing training or redefining correctness.
