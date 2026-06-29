@@ -266,3 +266,113 @@ N: 1,4,8
 ```
 
 This removes the expensive N=16/32 settings while giving a less noisy estimate of whether oracle/practical exact@N moves with sampling. If that shows signal, expand to all 200 examples and then to static/Stable-RTW seed0 comparisons.
+
+
+## Stage-1 limit=50, N=1/4/8 diagnostic result
+
+Status: **completed**.
+
+Run:
+
+```text
+checkpoint: Stable-RTW seed0
+splits: validation, test_in_dist
+limit: 50 examples per split
+N: 1,4,8
+temperature: 0.7
+top_p: 0.95
+max_new_tokens: 256
+```
+
+Artifacts:
+
+```text
+outputs/v09_bestofn_stable_seed0_validation_limit50_n8
+outputs/v09_bestofn_stable_seed0_test_in_dist_limit50_n8
+```
+
+### Results
+
+| split | N | oracle_exact@N | reranked_exact@N | reranked_valid_expression | reranked_number_f1 | reward_hacking_candidate | tokens_generated | wall_clock_s_est | cost_per_oracle_exact |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | 1 | 0.000 | 0.000 | 0.220 | 0.541 | 0.700 | 3,847 | 61.0 | inf |
+| validation | 4 | 0.120 | 0.120 | 0.540 | 0.906 | 0.460 | 17,360 | 244.1 | 33.3 |
+| validation | 8 | 0.140 | 0.140 | 0.680 | 0.945 | 0.300 | 34,528 | 488.3 | 57.1 |
+| test_in_dist | 1 | 0.040 | 0.040 | 0.220 | 0.587 | 0.780 | 4,161 | 57.5 | 25.0 |
+| test_in_dist | 4 | 0.060 | 0.060 | 0.520 | 0.916 | 0.480 | 15,711 | 229.9 | 66.7 |
+| test_in_dist | 8 | 0.120 | 0.120 | 0.680 | 0.974 | 0.320 | 31,600 | 459.9 | 66.7 |
+
+Notes:
+
+- `inf` in the table means exact rate was zero, so finite cost-per-exact is undefined. The JSON artifact stores this as a large sentinel value.
+- `wall_clock_s_est` is prefix-estimated from the max-N run, because candidates are sampled once at N=8 and N=1/4 are prefix subsets.
+
+### Decision classification
+
+This is **Case A** for the limit=50 diagnostic:
+
+```text
+oracle_exact@8 improves
+reranked_exact@8 improves
+```
+
+Validation:
+
+```text
+exact@1: 0.00
+oracle_exact@8: 0.14
+reranked_exact@8: 0.14
+```
+
+Test-in-distribution:
+
+```text
+exact@1: 0.04
+oracle_exact@8: 0.12
+reranked_exact@8: 0.12
+```
+
+The practical selector matched oracle exactness at every measured N in this diagnostic. This suggests the simple non-oracle verifier-style score can recover exact candidates when they appear in the sampled distribution.
+
+### Interpretation
+
+This provides the first substantial evidence that Stable-RTW has useful latent exact candidates in its policy distribution, and that verifier-guided candidate selection can convert some of that latent capability into higher exact pass rates without retraining or redefining correctness.
+
+The result also improves selected legality:
+
+```text
+validation valid_expression: 0.22 -> 0.68 from N=1 to N=8
+validation number_f1:        0.541 -> 0.945
+validation reward_hacking:   0.700 -> 0.300
+
+test_in_dist valid_expression: 0.22 -> 0.68
+test_in_dist number_f1:        0.587 -> 0.974
+test_in_dist reward_hacking:   0.780 -> 0.320
+```
+
+### Cost observation
+
+The HF sampling path remains expensive:
+
+```text
+validation:   488.3 seconds for 50 tasks × 8 candidates
+test_in_dist: 459.9 seconds for 50 tasks × 8 candidates
+```
+
+This matters for the harness-engineering story: best-of-N improves exactness and legality, but it increases inference cost. Any paper result should report sample budget and wall-clock/token cost.
+
+### Next step
+
+This result is strong enough to expand, but keep the next expansion controlled:
+
+```text
+static_v06b seed0
+Stable-RTW seed0
+validation + test_in_dist
+limit: 50
+N: 1,4,8
+```
+
+Purpose: determine whether best-of-N is specifically enhanced by Stable-RTW's candidate distribution, or whether static shaping has similar latent exact candidates.
+
+If Stable-RTW remains better under identical best-of-N harnessing, expand to seeds 0/1/2. If not, report v0.9 as a harness-level mechanism that helps both shaped policies rather than a Stable-RTW-specific advantage.
