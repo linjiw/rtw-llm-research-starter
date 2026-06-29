@@ -566,3 +566,90 @@ uv run ruff check .
 ```
 
 Both passed at implementation time.
+
+
+## v0.9B controlled seed expansion result
+
+Status: **completed**.
+
+Artifacts:
+
+```text
+outputs/v09b_bestofn_*_limit50_n8              # 12 run dirs
+outputs/v09_seed_expansion_summary.csv
+outputs/v09_seed_expansion_paired.json
+```
+
+Validation/invariant checks:
+
+```text
+12 / 12 run directories present
+all candidate banks: 400 rows = 50 tasks x 8 candidates
+metrics.json, summary.csv, and run_config.json present for every run
+static/Stable task IDs match for every seed x split pair
+oracle_exact@1 <= oracle_exact@4 <= oracle_exact@8 for every run
+reranked_exact@N <= oracle_exact@N for every run
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -q  # 42 passed
+uv run ruff check .                               # passed
+```
+
+Note: the serial runner exited with status 1 only because the final `uv run pytest -q` auto-loaded a ROS Humble pytest plugin from the host environment and failed on missing `lark`. Re-running tests with `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1` passed. The experiment runs and aggregator had already completed successfully.
+
+### Table 1: mean ± std across seeds
+
+| split | method | N | oracle_exact | reranked_exact | selected_valid | selected_number_f1 | reward_hack ↓ | tokens | wall_clock_s | cost_per_exact ↓ |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | static | 1 | 0.007±0.012 | 0.007±0.012 | 0.187±0.092 | 0.533±0.163 | 0.687±0.081 | 5,669±1,125 | 131.9±50.6 | 50.0±0.0 |
+| validation | Stable-RTW | 1 | 0.020±0.020 | 0.020±0.020 | 0.207±0.101 | 0.620±0.123 | 0.720±0.053 | 3,495±1,271 | 61.4±17.2 | 37.5±17.7 |
+| validation | static | 4 | 0.027±0.012 | 0.027±0.012 | 0.413±0.083 | 0.827±0.095 | 0.493±0.023 | 23,096±1,488 | 527.5±202.3 | 166.7±57.7 |
+| validation | Stable-RTW | 4 | 0.107±0.042 | 0.107±0.042 | 0.527±0.042 | 0.923±0.020 | 0.473±0.042 | 15,755±4,223 | 245.4±68.7 | 42.9±20.8 |
+| validation | static | 8 | 0.067±0.050 | 0.067±0.050 | 0.540±0.092 | 0.928±0.023 | 0.453±0.081 | 44,882±2,098 | 1,055.0±404.7 | 200.0±176.4 |
+| validation | Stable-RTW | 8 | 0.133±0.012 | 0.133±0.012 | 0.680±0.020 | 0.958±0.012 | 0.313±0.023 | 31,707±8,789 | 490.9±137.4 | 60.3±5.5 |
+| test_in_dist | static | 1 | 0.027±0.012 | 0.027±0.012 | 0.187±0.064 | 0.542±0.133 | 0.700±0.053 | 4,902±378 | 116.1±61.6 | 41.7±14.4 |
+| test_in_dist | Stable-RTW | 1 | 0.040±0.020 | 0.040±0.020 | 0.207±0.023 | 0.616±0.029 | 0.747±0.058 | 4,096±527 | 56.5±7.2 | 30.6±17.3 |
+| test_in_dist | static | 4 | 0.107±0.012 | 0.107±0.012 | 0.480±0.040 | 0.873±0.066 | 0.473±0.042 | 20,720±677 | 464.5±246.3 | 37.8±3.8 |
+| test_in_dist | Stable-RTW | 4 | 0.087±0.031 | 0.087±0.031 | 0.573±0.046 | 0.927±0.010 | 0.427±0.046 | 15,551±1,665 | 226.0±28.6 | 50.0±16.7 |
+| test_in_dist | static | 8 | 0.120±0.020 | 0.120±0.020 | 0.667±0.070 | 0.950±0.030 | 0.320±0.053 | 43,071±1,253 | 929.1±492.6 | 67.9±11.5 |
+| test_in_dist | Stable-RTW | 8 | 0.133±0.042 | 0.133±0.042 | 0.733±0.046 | 0.974±0.001 | 0.267±0.046 | 29,963±5,153 | 451.9±57.3 | 63.7±18.0 |
+
+### Table 2: paired overlap across all three seeds
+
+| split | N | both | Stable-only | static-only | neither | McNemar/binomial p | Δ reranked exact |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| validation | 1 | 0 | 3 | 1 | 146 | 0.6250 | +0.013±0.012 |
+| validation | 4 | 4 | 12 | 0 | 134 | 0.0005 | +0.080±0.035 |
+| validation | 8 | 9 | 11 | 1 | 129 | 0.0063 | +0.067±0.042 |
+| test_in_dist | 1 | 2 | 4 | 2 | 142 | 0.6875 | +0.013±0.012 |
+| test_in_dist | 4 | 8 | 5 | 8 | 129 | 0.5811 | -0.020±0.035 |
+| test_in_dist | 8 | 12 | 8 | 6 | 124 | 0.7905 | +0.013±0.050 |
+
+### Table 3: cost-aware Pareto at N=8
+
+| split | method | reranked_exact@8 | tokens_per_exact ↓ | seconds_per_exact ↓ |
+|---|---|---:|---:|---:|
+| validation | static | 0.067 | 673,230 | 15,824.6 |
+| validation | Stable-RTW | 0.133 | 237,800 | 3,681.6 |
+| test_in_dist | static | 0.120 | 358,922 | 7,742.5 |
+| test_in_dist | Stable-RTW | 0.133 | 224,725 | 3,389.5 |
+
+These are observed harness costs in this run, not an intrinsic claim that static is slower. The cost result is still important because best-of-N trades inference compute for exactness, and this repo has already observed many clipped/max-length completions.
+
+### Interpretation
+
+v0.9B is **Case A on validation** and **Case B/mixed on test_in_dist**.
+
+Validation is robust across seeds: Stable-RTW beats static at N=4 and N=8, practical reranking matches oracle exactness, and paired overlap strongly favors Stable-RTW (`Stable-only=11`, `static-only=1` at N=8; exact McNemar/binomial `p=0.0063`). This supports the claim that Stable-RTW improves the sampled candidate distribution and/or its rankability under the fixed verifier-style selector.
+
+Test-in-distribution confirms best-of-N as a general harness mechanism but does **not** show a decisive Stable-specific advantage. Both methods improve from N=1 to N=8. Stable-RTW is slightly higher on mean reranked_exact@8 (`0.133` vs `0.120`) and cleaner on selected legality (`selected_valid`, `number_f1`, `reward_hack`), but paired overlap is mixed (`Stable-only=8`, `static-only=6`, `p=0.7905`). Static is also better at N=4 on exactness.
+
+The practical reranker matched oracle exactness in every v0.9B aggregate shown here. That keeps the selector result clean: exact candidates are not merely latent, they are recoverable by the frozen non-oracle legality/distance/risk score in these diagnostics.
+
+### Decision
+
+Promote v0.9 as a real paper result, but with restrained language:
+
+```text
+Verifier-guided best-of-N is a general inference-time harness mechanism. Stable-RTW shows a robust best-of-N advantage on validation and a smaller/mixed advantage on test-in-distribution. The result supports the two-stage harness claim: training-time reward stability improves legal candidate formation/rankability, while inference-time verifier selection converts some latent exact candidates into task success. The benefit must be reported with sampling budget, paired uncertainty, generated tokens, wall-clock time, and cost-per-exact.
+```
+
+Do not claim universal Stable-RTW dominance under best-of-N. The in-distribution seed expansion is mixed enough that the honest claim is split-dependent: robust validation advantage, general harness benefit on test_in_dist.
