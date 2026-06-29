@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import time
 from pathlib import Path
 from typing import Any
 
@@ -32,15 +33,12 @@ SELECTED_METRIC_KEYS = [
 def practical_score(metrics: dict[str, Any]) -> float:
     """Non-oracle selector score using legality and distance, not exact correctness."""
     score = 0.0
-    score += 2.0 * float(metrics.get("valid_expression", 0.0))
+    score += 3.0 * float(metrics.get("valid_expression", 0.0))
+    score += 2.0 * float(metrics.get("uses_allowed_numbers", 0.0))
     score += 1.5 * float(metrics.get("number_multiset_f1", 0.0))
-    score += 1.0 * float(metrics.get("uses_allowed_numbers", 0.0))
-    score += 0.8 * float(metrics.get("uses_allowed_ops", 0.0))
-    score += 0.8 * float(metrics.get("uses_all_required_numbers", 0.0))
-    score += 0.5 * float(metrics.get("uses_no_extra_numbers", 0.0))
-    score += 0.6 * float(metrics.get("numeric_distance_reward", 0.0))
-    score += 0.2 * float(metrics.get("brevity", 0.0))
-    score -= 1.0 * float(metrics.get("reward_hacking_candidate", 0.0))
+    score += 1.0 * float(metrics.get("uses_allowed_ops", 0.0))
+    score += 1.0 * float(metrics.get("numeric_distance_reward", 0.0))
+    score -= 2.0 * float(metrics.get("reward_hacking_candidate", 0.0))
     return float(score)
 
 
@@ -68,26 +66,55 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, float]:
     return summary
 
 
-def evaluate_candidates(rows_by_id: dict[str, list[dict[str, Any]]], n_values: list[int]) -> dict[str, Any]:
+def evaluate_candidates(
+    rows_by_id: dict[str, list[dict[str, Any]]],
+    n_values: list[int],
+    *,
+    wall_clock_seconds: float = 0.0,
+    max_n: int | None = None,
+) -> dict[str, Any]:
+    max_n = max_n or max(n_values)
     report: dict[str, Any] = {"n_examples": len(rows_by_id), "n_values": n_values, "by_n": {}}
+    total_tokens_generated = sum(
+        int(row.get("completion_token_count", 0)) for candidates in rows_by_id.values() for row in candidates
+    )
     for n in n_values:
         practical_rows = []
         oracle_rows = []
+        tokens_at_n = 0
         for candidates in rows_by_id.values():
             prefix = candidates[:n]
-            practical_rows.append(choose_practical(prefix))
-            oracle_rows.append(choose_oracle(prefix))
+            tokens_at_n += sum(int(row.get("completion_token_count", 0)) for row in prefix)
+            practical = choose_practical(prefix)
+            oracle = choose_oracle(prefix)
+            practical_rows.append(practical)
+            oracle_rows.append(oracle)
+            practical.setdefault("selected_by_practical_n", []).append(n)
+            oracle.setdefault("selected_by_oracle_n", []).append(n)
         practical_summary = summarize_rows(practical_rows)
         oracle_summary = summarize_rows(oracle_rows)
+        estimated_wall_clock = float(wall_clock_seconds * (n / max(max_n, 1)))
         report["by_n"][str(n)] = {
+            "samples_per_task": n,
+            "wall_clock_seconds_estimated": estimated_wall_clock,
+            "tokens_generated": int(tokens_at_n),
+            "total_tokens_generated_for_max_n_run": int(total_tokens_generated),
             "practical_selected": practical_summary,
             "oracle_selected": oracle_summary,
             "oracle_exact_at_n": oracle_summary.get("exact_correct", 0.0),
-            "reranked_exact_at_1": practical_summary.get("exact_correct", 0.0),
+            "reranked_exact_at_n": practical_summary.get("exact_correct", 0.0),
             "cost_per_oracle_exact": float(n / max(oracle_summary.get("exact_correct", 0.0), 1e-12)),
             "cost_per_reranked_exact": float(n / max(practical_summary.get("exact_correct", 0.0), 1e-12)),
         }
     return report
+
+
+def count_completion_tokens(engine: Any, completion: str) -> int:
+    tokenizer = getattr(engine, "tokenizer", None)
+    if tokenizer is None:
+        return len(completion.split())
+    encoded = tokenizer(completion, add_special_tokens=False)
+    return int(len(encoded.get("input_ids", [])))
 
 
 def main() -> None:
@@ -140,6 +167,7 @@ def main() -> None:
         do_sample=args.temperature > 0,
     )
 
+    started_at = time.time()
     rows: list[dict[str, Any]] = []
     rows_by_id: dict[str, list[dict[str, Any]]] = {}
     expanded: list[tuple[dict[str, Any], int]] = []
@@ -162,9 +190,14 @@ def main() -> None:
                 "allowed_ops": ex["allowed_ops"],
                 "prompt_field": args.prompt_field,
                 "candidate_index": candidate_index,
+                "raw_generation": completion,
                 "completion": completion,
+                "extracted_expression": metrics.get("expression"),
+                "completion_token_count": count_completion_tokens(engine, completion),
                 "metrics": metrics,
                 "practical_score": practical_score(metrics),
+                "selected_by_practical_n": [],
+                "selected_by_oracle_n": [],
             }
             rows.append(row)
             rows_by_id[ex["id"]].append(row)
@@ -172,8 +205,13 @@ def main() -> None:
     for candidates in rows_by_id.values():
         candidates.sort(key=lambda row: row["candidate_index"])
 
-    write_jsonl(output_dir / "candidates.jsonl", rows)
-    report = evaluate_candidates(rows_by_id, n_values)
+    wall_clock_seconds = time.time() - started_at
+    report = evaluate_candidates(
+        rows_by_id,
+        n_values,
+        wall_clock_seconds=wall_clock_seconds,
+        max_n=max_n,
+    )
     report.update(
         {
             "model_name": args.model_name,
@@ -184,8 +222,13 @@ def main() -> None:
             "top_p": args.top_p,
             "max_new_tokens": args.max_new_tokens,
             "seed": args.seed,
+            "wall_clock_seconds": wall_clock_seconds,
+            "total_candidates": len(rows),
+            "total_tokens_generated": sum(int(row["completion_token_count"]) for row in rows),
         }
     )
+
+    write_jsonl(output_dir / "candidates.jsonl", rows)
     (output_dir / "metrics.json").write_text(json.dumps(report, indent=2))
 
     flat_rows = []

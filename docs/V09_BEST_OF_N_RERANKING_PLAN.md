@@ -137,6 +137,54 @@ Tests:
 tests/test_best_of_n_rerank.py
 ```
 
+## Implementation update: cost-aware candidate bank
+
+The v0.9 script now records cost and selection metadata in addition to metrics:
+
+```text
+wall_clock_seconds
+tokens_generated
+samples_per_task
+cost_per_oracle_exact
+cost_per_reranked_exact
+completion_token_count per candidate
+selected_by_practical_n
+selected_by_oracle_n
+```
+
+The candidate bank stores:
+
+```text
+task_id / id
+candidate_index
+raw_generation
+extracted_expression
+exact_correct
+valid_expression
+allowed_numbers
+number_f1
+allowed_ops
+numeric_distance_reward
+reward_hacking_candidate
+practical_score
+selected_by_practical_n
+selected_by_oracle_n
+```
+
+The selector score is intentionally simple and fixed:
+
+```text
+score =
+  3.0 * valid_expression
++ 2.0 * uses_allowed_numbers
++ 1.5 * number_multiset_f1
++ 1.0 * uses_allowed_ops
++ 1.0 * numeric_distance_reward
+- 2.0 * reward_hacking_candidate
+```
+
+Exact correctness is not used by the practical selector; it is only reported after selection.
+
 ## Status
 
 - [x] Implement best-of-N candidate selection script.

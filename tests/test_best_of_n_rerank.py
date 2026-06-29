@@ -69,3 +69,15 @@ def test_evaluate_candidates_reports_monotonic_oracle_exact_at_n():
     report = mod.evaluate_candidates(rows_by_id, [1, 2])
     assert report["by_n"]["1"]["oracle_exact_at_n"] == 0.0
     assert report["by_n"]["2"]["oracle_exact_at_n"] == 0.5
+    assert report["by_n"]["2"]["samples_per_task"] == 2
+
+
+def test_evaluate_candidates_marks_selected_candidates_by_prefix_n():
+    mod = load_module()
+    rows_by_id = {"a": [candidate(0, exact=0.0), candidate(1, exact=1.0, valid=1.0, number_f1=1.0)]}
+    for rows in rows_by_id.values():
+        for row in rows:
+            row["practical_score"] = mod.practical_score(row["metrics"])
+    mod.evaluate_candidates(rows_by_id, [1, 2])
+    assert rows_by_id["a"][0]["selected_by_practical_n"] == [1]
+    assert rows_by_id["a"][1]["selected_by_oracle_n"] == [2]
