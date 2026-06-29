@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -82,7 +83,9 @@ def evaluate_candidates(
         practical_rows = []
         oracle_rows = []
         tokens_at_n = 0
-        for candidates in rows_by_id.values():
+        for task_id, candidates in rows_by_id.items():
+            if len(candidates) < n:
+                raise ValueError(f"Task {task_id} has only {len(candidates)} candidates; cannot evaluate N={n}")
             prefix = candidates[:n]
             tokens_at_n += sum(int(row.get("completion_token_count", 0)) for row in prefix)
             practical = choose_practical(prefix)
@@ -103,10 +106,69 @@ def evaluate_candidates(
             "oracle_selected": oracle_summary,
             "oracle_exact_at_n": oracle_summary.get("exact_correct", 0.0),
             "reranked_exact_at_n": practical_summary.get("exact_correct", 0.0),
-            "cost_per_oracle_exact": float(n / max(oracle_summary.get("exact_correct", 0.0), 1e-12)),
-            "cost_per_reranked_exact": float(n / max(practical_summary.get("exact_correct", 0.0), 1e-12)),
+            "cost_per_oracle_exact": cost_per_exact(n, oracle_summary.get("exact_correct", 0.0)),
+            "cost_per_reranked_exact": cost_per_exact(n, practical_summary.get("exact_correct", 0.0)),
         }
     return report
+
+
+def cost_per_exact(samples_per_task: int, exact_rate: float) -> float:
+    return float(samples_per_task / max(float(exact_rate), 1e-12))
+
+
+def parse_n_values(values: list[str] | str) -> list[int]:
+    if isinstance(values, str):
+        parts = re.split(r"[\s,]+", values.strip())
+    else:
+        parts: list[str] = []
+        for value in values:
+            parts.extend(re.split(r"[\s,]+", value.strip()))
+    n_values = sorted({int(value) for value in parts if value})
+    if not n_values or min(n_values) < 1:
+        raise ValueError(f"Invalid --n_values: {values}")
+    return n_values
+
+
+def load_task_ids(path: str | None) -> list[str] | None:
+    if path is None:
+        return None
+    task_ids = [line.strip() for line in Path(path).read_text().splitlines() if line.strip()]
+    if len(task_ids) != len(set(task_ids)):
+        raise ValueError(f"Duplicate task IDs in {path}")
+    return task_ids
+
+
+def select_examples(examples: list[dict[str, Any]], *, limit: int | None, task_ids_file: str | None) -> list[dict[str, Any]]:
+    task_ids = load_task_ids(task_ids_file)
+    if task_ids is None:
+        return examples[:limit] if limit is not None else examples
+    by_id = {ex["id"]: ex for ex in examples}
+    missing = [task_id for task_id in task_ids if task_id not in by_id]
+    if missing:
+        raise ValueError(f"{len(missing)} task IDs from {task_ids_file} are missing from data: {missing[:5]}")
+    selected = [by_id[task_id] for task_id in task_ids]
+    if limit is not None and len(selected) != limit:
+        raise ValueError(f"--limit {limit} does not match {len(selected)} task IDs from {task_ids_file}")
+    return selected
+
+
+def is_complete(output_dir: Path, max_n: int, n_examples: int | None = None) -> bool:
+    metrics_path = output_dir / "metrics.json"
+    candidates_path = output_dir / "candidates.jsonl"
+    summary_path = output_dir / "summary.csv"
+    if not (metrics_path.exists() and candidates_path.exists() and summary_path.exists()):
+        return False
+    try:
+        metrics = json.loads(metrics_path.read_text())
+    except json.JSONDecodeError:
+        return False
+    if str(max_n) not in metrics.get("by_n", {}):
+        return False
+    if n_examples is not None and int(metrics.get("n_examples", -1)) != n_examples:
+        return False
+    expected_candidates = int(metrics.get("n_examples", 0)) * max_n
+    actual_candidates = sum(1 for _ in candidates_path.open())
+    return actual_candidates == expected_candidates
 
 
 def count_completion_tokens(engine: Any, completion: str) -> int:
@@ -117,22 +179,53 @@ def count_completion_tokens(engine: Any, completion: str) -> int:
     return int(len(encoded.get("input_ids", [])))
 
 
+def write_run_config(output_dir: Path, args: argparse.Namespace, n_values: list[int], max_n: int, n_examples: int) -> None:
+    config = {
+        "method": args.method,
+        "training_seed": args.training_seed,
+        "sampling_seed": args.seed,
+        "split": args.split,
+        "model_name": args.model_name,
+        "adapter_path": args.adapter_path,
+        "data_path": args.data_path,
+        "task_ids_file": args.task_ids_file,
+        "limit": args.limit,
+        "n_examples": n_examples,
+        "n_values": n_values,
+        "max_n": max_n,
+        "temperature": args.temperature,
+        "top_p": args.top_p,
+        "max_new_tokens": args.max_new_tokens,
+        "batch_size": args.batch_size,
+        "prompt_field": args.prompt_field,
+        "engine": args.engine,
+        "device": args.device,
+    }
+    (output_dir / "run_config.json").write_text(json.dumps(config, indent=2) + "\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--adapter_path", default=None)
     parser.add_argument("--data_path", default="data/countdown/validation.jsonl")
+    parser.add_argument("--task_ids_file", default=None)
     parser.add_argument("--output_dir", default="outputs/best_of_n")
     parser.add_argument("--engine", choices=["hf", "vllm"], default="hf")
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     parser.add_argument("--prompt_field", default="prompt")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--n_values", default="1,4,8,16,32")
+    parser.add_argument("--n_values", nargs="+", default=["1,4,8,16,32"])
+    parser.add_argument("--max_n", type=int, default=None)
     parser.add_argument("--max_new_tokens", type=int, default=256)
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top_p", type=float, default=0.95)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--method", default=None)
+    parser.add_argument("--training_seed", type=int, default=None)
+    parser.add_argument("--split", default=None)
+    parser.add_argument("--skip_if_complete", action="store_true")
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -147,14 +240,19 @@ def main() -> None:
     except Exception:
         pass
 
-    n_values = sorted({int(value) for value in args.n_values.split(",") if value.strip()})
-    if not n_values or min(n_values) < 1:
-        raise ValueError(f"Invalid --n_values: {args.n_values}")
-    max_n = max(n_values)
+    n_values = parse_n_values(args.n_values)
+    max_n = args.max_n or max(n_values)
+    if max(n_values) > max_n:
+        raise ValueError(f"max --n_values {max(n_values)} exceeds --max_n {max_n}")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    examples = read_jsonl(args.data_path, limit=args.limit)
+    all_examples = read_jsonl(args.data_path)
+    examples = select_examples(all_examples, limit=args.limit, task_ids_file=args.task_ids_file)
+    if args.skip_if_complete and is_complete(output_dir, max_n=max_n, n_examples=len(examples)):
+        print(json.dumps({"status": "skipped_complete", "output_dir": str(output_dir), "max_n": max_n}, indent=2))
+        return
+
     engine = (
         VLLMEngine(args.model_name)
         if args.engine == "vllm"
@@ -217,11 +315,16 @@ def main() -> None:
             "model_name": args.model_name,
             "adapter_path": args.adapter_path,
             "data_path": args.data_path,
+            "task_ids_file": args.task_ids_file,
             "prompt_field": args.prompt_field,
             "temperature": args.temperature,
             "top_p": args.top_p,
             "max_new_tokens": args.max_new_tokens,
             "seed": args.seed,
+            "training_seed": args.training_seed,
+            "method": args.method,
+            "split": args.split,
+            "max_n": max_n,
             "wall_clock_seconds": wall_clock_seconds,
             "total_candidates": len(rows),
             "total_tokens_generated": sum(int(row["completion_token_count"]) for row in rows),
@@ -229,7 +332,8 @@ def main() -> None:
     )
 
     write_jsonl(output_dir / "candidates.jsonl", rows)
-    (output_dir / "metrics.json").write_text(json.dumps(report, indent=2))
+    (output_dir / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
+    write_run_config(output_dir, args, n_values, max_n, len(examples))
 
     flat_rows = []
     for n, result in report["by_n"].items():

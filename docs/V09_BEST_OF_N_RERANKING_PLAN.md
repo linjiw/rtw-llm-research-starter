@@ -498,3 +498,71 @@ same selector
 ```
 
 Report `mean ± std`, paired deltas, Stable-only/static-only overlap, cost-per-exact, and tokens-per-exact. Only after this seed expansion should v0.9 move to `test_ood_long` and `test_ood_division`.
+
+
+## v0.9B controlled seed expansion plan
+
+Status: **implementation ready; runs pending**.
+
+Experiment name: **v0.9B: Controlled Seed Expansion for Verifier-Guided Best-of-N**.
+
+Question:
+
+```text
+Does Stable-RTW produce a better sampled candidate distribution than static shaping under the same verifier-guided best-of-N harness?
+```
+
+Frozen design:
+
+```text
+methods: static_v06b, Stable-RTW/adaptive_stable_v06c
+seeds: 0, 1, 2
+splits: validation, test_in_dist
+limit: 50
+N: 1,4,8 from max-N=8 prefixes
+temperature: 0.7
+top_p: 0.95
+max_new_tokens: 256
+batch_size: 8
+prompt_field: prompt
+sampling_seed: 0
+```
+
+Task-ID files are frozen from the seed0 candidate banks:
+
+```text
+outputs/v09_task_ids_validation_limit50.txt
+outputs/v09_task_ids_test_in_dist_limit50.txt
+```
+
+Runner support added to `scripts/07_best_of_n_rerank.py`:
+
+```text
+--task_ids_file
+--max_n
+--n_values 1 4 8   # comma-separated form still accepted
+--skip_if_complete
+run_config.json writing
+```
+
+Aggregator added:
+
+```text
+scripts/08_summarize_v09_seed_expansion.py
+```
+
+Expected summary artifacts:
+
+```text
+outputs/v09_seed_expansion_summary.csv
+outputs/v09_seed_expansion_paired.json
+```
+
+Validation gates before launching runs:
+
+```text
+uv run pytest -q
+uv run ruff check .
+```
+
+Both passed at implementation time.
