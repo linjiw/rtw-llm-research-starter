@@ -376,3 +376,100 @@ N: 1,4,8
 Purpose: determine whether best-of-N is specifically enhanced by Stable-RTW's candidate distribution, or whether static shaping has similar latent exact candidates.
 
 If Stable-RTW remains better under identical best-of-N harnessing, expand to seeds 0/1/2. If not, report v0.9 as a harness-level mechanism that helps both shaped policies rather than a Stable-RTW-specific advantage.
+
+
+## Stage-2 static-vs-Stable seed0 limit=50 comparison
+
+Status: **completed**.
+
+Goal: test whether best-of-N exact recovery is a general property of the static/base shaped policy or whether Stable-RTW creates a more useful candidate distribution.
+
+Controls:
+
+```text
+checkpoints: static_v06b seed0, Stable-RTW seed0
+splits: validation, test_in_dist
+limit: first 50 examples per split
+N: 1,4,8 using prefixes from one N=8 candidate bank
+temperature: 0.7
+top_p: 0.95
+max_new_tokens: 256
+prompt_field: prompt
+engine: HF
+batch_size: 8
+```
+
+Artifacts:
+
+```text
+outputs/v09_bestofn_static_v06b_seed0_validation_limit50_n8
+outputs/v09_bestofn_static_v06b_seed0_test_in_dist_limit50_n8
+outputs/v09_bestofn_stable_seed0_validation_limit50_n8
+outputs/v09_bestofn_stable_seed0_test_in_dist_limit50_n8
+```
+
+Pairing check:
+
+```text
+validation:   static and Stable used identical 50 task IDs
+test_in_dist: static and Stable used identical 50 task IDs
+```
+
+### Main table
+
+| split | method | N | exact@1 | oracle_exact@N | reranked_exact@N | selected_valid | selected_number_f1 | reward_hack ↓ | tokens | wall_clock_s | cost_per_exact ↓ |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | static_v06b | 1 | 0.00 | 0.00 | 0.00 | 0.24 | 0.584 | 0.60 | 6,712 | 145.8 | inf |
+| validation | static_v06b | 4 | 0.00 | 0.02 | 0.02 | 0.48 | 0.916 | 0.52 | 24,600 | 583.2 | 200.0 |
+| validation | static_v06b | 8 | 0.00 | 0.06 | 0.06 | 0.56 | 0.940 | 0.44 | 47,192 | 1,166.4 | 133.3 |
+| validation | Stable-RTW | 1 | 0.00 | 0.00 | 0.00 | 0.22 | 0.541 | 0.70 | 3,847 | 61.0 | inf |
+| validation | Stable-RTW | 4 | 0.00 | 0.12 | 0.12 | 0.54 | 0.906 | 0.46 | 17,360 | 244.2 | 33.3 |
+| validation | Stable-RTW | 8 | 0.00 | 0.14 | 0.14 | 0.68 | 0.945 | 0.30 | 34,528 | 488.3 | 57.1 |
+| test_in_dist | static_v06b | 1 | 0.02 | 0.02 | 0.02 | 0.26 | 0.662 | 0.68 | 5,015 | 187.2 | 50.0 |
+| test_in_dist | static_v06b | 4 | 0.02 | 0.10 | 0.10 | 0.52 | 0.890 | 0.44 | 20,349 | 748.9 | 40.0 |
+| test_in_dist | static_v06b | 8 | 0.02 | 0.10 | 0.10 | 0.74 | 0.972 | 0.26 | 43,045 | 1,497.9 | 80.0 |
+| test_in_dist | Stable-RTW | 1 | 0.04 | 0.04 | 0.04 | 0.22 | 0.587 | 0.78 | 4,161 | 57.5 | 25.0 |
+| test_in_dist | Stable-RTW | 4 | 0.04 | 0.06 | 0.06 | 0.52 | 0.916 | 0.48 | 15,711 | 229.9 | 66.7 |
+| test_in_dist | Stable-RTW | 8 | 0.04 | 0.12 | 0.12 | 0.68 | 0.974 | 0.32 | 31,600 | 459.9 | 66.7 |
+
+### Stable-minus-static delta table
+
+| split | N | Δ oracle_exact | Δ reranked_exact | Δ selected_number_f1 | Δ reward_hack | interpretation |
+|---|---:|---:|---:|---:|---:|---|
+| validation | 1 | +0.00 | +0.00 | -0.043 | +0.10 | no single-sample exact difference |
+| validation | 4 | +0.10 | +0.10 | -0.010 | -0.06 | Stable has clearly better best-of-4 exact recovery |
+| validation | 8 | +0.08 | +0.08 | +0.005 | -0.14 | Stable retains a strong exact and anti-hacking advantage |
+| test_in_dist | 1 | +0.02 | +0.02 | -0.075 | +0.10 | Stable single-sample exact is slightly higher but legality is noisier |
+| test_in_dist | 4 | -0.04 | -0.04 | +0.025 | +0.04 | static has stronger early best-of-4 exact recovery |
+| test_in_dist | 8 | +0.02 | +0.02 | +0.002 | +0.06 | Stable narrowly beats static on exact but not reward-hacking |
+
+### Paired N=8 task overlap
+
+| split | selector | both | Stable-only | static-only | neither |
+|---|---|---:|---:|---:|---:|
+| validation | oracle | 3 | 4 | 0 | 43 |
+| validation | practical | 3 | 4 | 0 | 43 |
+| test_in_dist | oracle | 4 | 2 | 1 | 43 |
+| test_in_dist | practical | 4 | 2 | 1 | 43 |
+
+### Sanity audit
+
+Stable-RTW oracle/practical agreement was confirmed directly from the candidate banks:
+
+| split | oracle_exact@8 tasks | reranked_exact@8 tasks | oracle-exact but practical-missed tasks |
+|---|---:|---:|---:|
+| validation | 7 | 7 | 0 |
+| test_in_dist | 6 | 6 | 0 |
+
+The selector implementation was also inspected: `practical_score()` uses validity, number legality, number multiset F1, operator legality, numeric-distance reward, and reward-hacking penalty; it does **not** use `exact_correct`.
+
+### Decision classification
+
+This is closest to **Case 1 on validation** and a mixed **Case 1/3 on test_in_dist**:
+
+- Validation: Stable-RTW is clearly better than static under both oracle and practical best-of-N. At N=8, Stable solves 7/50 tasks vs static 3/50, and all static successes are included in the Stable success set.
+- Test-in-distribution: both methods benefit from best-of-N; Stable is only slightly higher at N=8 (6/50 vs 5/50), while static is better at N=4 (5/50 vs 3/50). This is not a clean Stable-specific win on this split.
+
+Overall interpretation: v0.9 remains a real positive signal for Stable-RTW, especially on validation, but the static control shows that verifier-guided best-of-N is also a broader harness effect. The strongest safe claim is that Stable-RTW creates a more useful candidate distribution on validation and remains competitive-to-slightly-better at N=8 on test_in_dist, while both policies can expose latent exact candidates under sampling.
+
+Cost note: static generated substantially more tokens and took longer than Stable at the same N=8 budget in this run, so report sample budget, wall-clock, and cost-per-exact with any exactness claim.
