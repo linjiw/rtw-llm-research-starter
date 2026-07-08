@@ -1,366 +1,161 @@
 # Current Project Status and Paper Assessment
 
-Snapshot time: `2026-06-28T03:24:54-04:00`
+Snapshot time: `2026-07-08T15:19:37-04:00`
 
 Repository: `/home/robotixx/rtw-llm-research-starter`
 
+Current local head at snapshot time: `cfd76bf` (`Document v0.9B seed expansion result`).
+
 ## Executive summary
 
-This project is a promising research scaffold for **Reward Training Wheels (RTW) for harness-aware LLM post-training**, but the current empirical evidence is **not yet paper-ready for the strong adaptive-RTW claim**.
+This repo has moved from a raw RTW-for-LLMs starter into a paper-shaped Countdown harness study with a cleaner current result:
 
-The main current finding is:
+> **Stable-RTW improves candidate legality/rankability enough that a fixed verifier-guided best-of-N harness can recover more exact solutions on validation. On test-in-distribution, best-of-N is clearly useful as a general harness mechanism, but the Stable-vs-static advantage is smaller and mixed.**
 
-> Dense verifier-aligned auxiliary rewards successfully move a small LLM from essentially zero usable Countdown harness behavior into parseable, partially legal expression generation, while preserving strict verifier-backed primary correctness.
+The strongest current claim is **not** universal Stable-RTW dominance. The defensible framing is:
 
-The current evidence does **not** yet support:
+1. Dense verifier-aligned auxiliary rewards teach a small LLM to produce parseable, partially legal Countdown expressions under a strict verifier.
+2. Stable/phase-protected RTW reduces teacher instability relative to earlier adaptive variants.
+3. Inference-time verifier-guided best-of-N is a real harness mechanism: sampled exact candidates can be recovered by a fixed practical reranker that does **not** use exact correctness as an input.
+4. Stable-RTW shows a robust validation advantage under best-of-N across seeds, while test-in-distribution remains a broader harness benefit with only a small/mixed Stable-specific edge.
 
-> Adaptive auxiliary reward weighting beats static/fixed reward shaping.
+## Repository state
 
-In the current v0.6b seed-0 comparison, the **static** reward schedule generally outperforms the **adaptive RTW** schedule on held-out legality and exact-correctness metrics.
+At this snapshot, the branch was `main` with a clean working tree after local validation. The local branch contained 20 commits not yet pushed to `origin/main`, spanning v0.6c through v0.9B.
 
-## Current research goal
+Important archival files:
 
-The intended paper-shaped goal is:
+| Purpose | Path |
+|---|---|
+| Best-of-N plan and results | `docs/V09_BEST_OF_N_RERANKING_PLAN.md` |
+| Paper outline | `docs/PAPER_OUTLINE.md` |
+| Research design | `docs/PROJECT_DESIGN.md` |
+| v0.9B aggregate metrics | `outputs/v09_seed_expansion_summary.csv` |
+| v0.9B paired overlap | `outputs/v09_seed_expansion_paired.json` |
+| Frozen validation task IDs | `outputs/v09_task_ids_validation_limit50.txt` |
+| Frozen test-in-dist task IDs | `outputs/v09_task_ids_test_in_dist_limit50.txt` |
 
-> Adaptive auxiliary reward weighting improves verifier-based harness acquisition in LLM post-training compared with fixed, manual, and random reward schedules.
+## Validation performed at this snapshot
 
-The broader framing is strong:
-
-> LLM agents are not just model weights. They are model plus harness: prompts, tools, validators, execution loops, state, guardrails, logging, and feedback. Therefore, post-training should treat harness components and verifier feedback as adaptive training signals.
-
-The current controlled domain is **Countdown arithmetic**, chosen as a clean verifier-based wind tunnel before moving to coding-agent harnesses.
-
-## Current repo state
-
-The current branch is `main`.
-
-At snapshot time, git status was:
-
-```text
- M scripts/02_grpo_train.py
- M scripts/05_check_run_health.py
- M src/rtw_llm/countdown.py
- M src/rtw_llm/prompts.py
- M src/rtw_llm/teacher.py
- M tests/test_countdown.py
- M tests/test_teacher.py
-?? docs/PROJECT_DESIGN.md
-?? docs/V06B_ADAPTIVE_STATIC_SEED0_REPORT.md
-?? docs/V06B_LEGALITY_TRACKER.md
-?? docs/V06C_TEACHER_STABILITY.md
-?? uv.lock
-```
-
-Important implication:
-
-> The current research story depends on uncommitted code and documentation. Before treating any result as archival, commit the exact implementation, docs, and lockfile that produced it.
-
-Suggested commit theme:
-
-```text
-Add v0.6b dense legality rewards and teacher-stability notes
-```
-
-## Validation performed
-
-The test suite was run with:
+Commands:
 
 ```bash
-uv run pytest -q
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 uv run pytest -q
+uv run ruff check .
 ```
 
-Observed result:
+Observed results:
 
 ```text
-22 passed in 0.01s
+42 passed in 0.30s
+All checks passed!
 ```
 
-So the verifier/reward changes were passing at the time of inspection.
+The pytest plugin autoload guard is intentional on this host: a ROS Humble pytest plugin can otherwise be imported and fail on missing `lark`, unrelated to this repo.
 
-## Current experiment: v0.6b adaptive vs static, seed 0
+## Current empirical arc
 
-Runs inspected:
+### v0.6b: dense legality rewards work, naive adaptive RTW underperforms static
+
+The initial dense-reward comparison established that verifier-aligned auxiliary rewards create usable learning signal. However, the first adaptive RTW controller overreacted to dense components and generally underperformed static shaping on seed 0.
+
+Safe conclusion from v0.6b:
+
+> Dense verifier-aligned auxiliary rewards can move a small LLM from near-zero usable Countdown behavior into parseable and partially legal expression construction, but naive adaptive weighting was not yet better than static shaping.
+
+### v0.6c/v0.6d: Stable-RTW improves the adaptive story
+
+The project then shifted from unconstrained adaptive weights to a more stable teacher/controller variant. This changed the paper story away from “any adaptive RTW beats static” and toward:
+
+> Reward weighting needs stability constraints; RTW is useful when it preserves legality pressure instead of prematurely suppressing training-wheel components.
+
+### v0.7/v0.8: prompt/teacher diagnostics refine the bottleneck
+
+The prompt-length and Phased-RTW diagnostics narrowed the mechanism:
+
+- exact correctness is not just a prompt-length artifact;
+- teacher shaping helps legality and rankability more than it directly solves target search;
+- repeated small teacher tweaks should stop once evidence points to search/reranking as the bottleneck.
+
+### v0.9/v0.9B: verifier-guided best-of-N becomes the main positive result
+
+v0.9 tested frozen checkpoints under an inference-time harness: sample up to N candidates and select using a fixed practical verifier-style score.
+
+The practical selector uses legality/distance/risk features such as valid expression, number multiset F1, allowed numbers/operators, numeric distance reward, and reward-hacking penalty. It does **not** use exact correctness as an input. Exactness is only evaluated afterward by the strict verifier.
+
+## v0.9B controlled seed expansion
+
+Design:
 
 ```text
-adaptive:
-  outputs/grpo_rtw_v06b_dense_numbers_cuda_pilot_300_seed0
-
-static:
-  outputs/grpo_static_v06b_dense_numbers_cuda_pilot_300_seed0
+methods: static_v06b, Stable-RTW/adaptive_stable_v06c
+seeds: 0, 1, 2
+splits: validation, test_in_dist
+limit: 50 examples per split
+N: 1,4,8 from max-N=8 prefixes
+temperature: 0.7
+top_p: 0.95
+max_new_tokens: 256
+same frozen task IDs per split
+same selector
 ```
 
-Both used:
+Invariant checks completed:
 
 ```text
-model: Qwen/Qwen2.5-0.5B-Instruct
-seed: 0
-max_steps: 300
-num_generations: 4
-reward surface: v0.6b dense legality rewards
+12 / 12 run directories present
+all candidate banks: 400 rows = 50 tasks x 8 candidates
+metrics.json, summary.csv, and run_config.json present for every run
+static/Stable task IDs match for every seed x split pair
+oracle_exact@1 <= oracle_exact@4 <= oracle_exact@8 for every run
+reranked_exact@N <= oracle_exact@N for every run
 ```
 
-Both recorded audit commit:
+### Key aggregate results
 
-```text
-1815b8af70b8c57c25cadba9a39e4e3f2589ce68
-```
+| split | method | N | reranked_exact mean ± std | selected_valid mean ± std | selected_number_f1 mean ± std | reward_hack ↓ |
+|---|---|---:|---:|---:|---:|---:|
+| validation | static | 8 | 0.067 ± 0.050 | 0.540 ± 0.092 | 0.928 ± 0.023 | 0.453 |
+| validation | Stable-RTW | 8 | 0.133 ± 0.012 | 0.680 ± 0.020 | 0.958 ± 0.012 | 0.313 |
+| test_in_dist | static | 8 | 0.120 ± 0.020 | 0.667 ± 0.070 | 0.950 ± 0.030 | 0.320 |
+| test_in_dist | Stable-RTW | 8 | 0.133 ± 0.042 | 0.733 ± 0.046 | 0.974 ± 0.001 | 0.267 |
 
-## Training-side metrics
+### Paired overlap across all three seeds
 
-| Metric | Adaptive | Static |
-|---|---:|---:|
-| primary reward mean / exact correct | 0.0246 | 0.0296 |
-| aux reward weighted mean | 0.3158 | 0.6474 |
-| reward variance nonzero fraction | 1.0000 | 1.0000 |
-| format | 0.9295 | 0.9298 |
-| parseable expression | 0.8000 | 0.7808 |
-| number multiset F1 | 0.5507 | 0.5268 |
-| allowed numbers | 0.2444 | 0.2444 |
-| allowed ops | 0.5769 | 0.5575 |
-| valid expression | 0.2190 | 0.2248 |
-| exact correct | 0.0246 | 0.0296 |
+| split | N | both | Stable-only | static-only | neither | McNemar/binomial p | Δ reranked exact |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| validation | 4 | 4 | 12 | 0 | 134 | 0.0005 | +0.080 ± 0.035 |
+| validation | 8 | 9 | 11 | 1 | 129 | 0.0063 | +0.067 ± 0.042 |
+| test_in_dist | 4 | 8 | 5 | 8 | 129 | 0.5811 | -0.020 ± 0.035 |
+| test_in_dist | 8 | 12 | 8 | 6 | 124 | 0.7905 | +0.013 ± 0.050 |
 
-Interpretation:
+### Interpretation
 
-- The v0.6b dense reward surface creates a live learning signal.
-- Both adaptive and static move off the all-zero base-model regime.
-- Adaptive is slightly better on training parseability and number F1.
-- Static is slightly better on training valid-expression and exact-correctness rates.
+v0.9B is **Case A on validation** and **mixed/general-harness on test_in_dist**.
 
-## Held-out v0.6b eval metrics
+Validation is the cleanest result: Stable-RTW beats static at N=4 and N=8, the practical reranker matches oracle exactness, and paired overlap strongly favors Stable-RTW at N=8 (`Stable-only=11`, `static-only=1`, `p=0.0063`).
 
-| split | method | parse_ok | number_multiset_f1 | uses_allowed_numbers | uses_no_extra_numbers | uses_all_required_numbers | uses_allowed_ops | valid_expression | exact_correct | reward_hacking_candidate |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| validation | adaptive | 0.935 | 0.809 | 0.370 | 0.805 | 0.395 | 0.860 | 0.345 | 0.035 | 0.655 |
-| validation | static | 0.960 | 0.853 | 0.440 | 0.835 | 0.470 | 0.885 | 0.415 | 0.045 | 0.585 |
-| test_in_dist | adaptive | 0.985 | 0.840 | 0.390 | 0.815 | 0.400 | 0.885 | 0.355 | 0.030 | 0.645 |
-| test_in_dist | static | 0.980 | 0.867 | 0.455 | 0.805 | 0.495 | 0.890 | 0.415 | 0.025 | 0.585 |
-| test_ood_long | adaptive | 1.000 | 0.697 | 0.050 | 0.785 | 0.070 | 0.965 | 0.050 | 0.015 | 0.950 |
-| test_ood_long | static | 1.000 | 0.733 | 0.055 | 0.750 | 0.075 | 0.950 | 0.045 | 0.015 | 0.955 |
-| test_ood_division | adaptive | 1.000 | 0.827 | 0.230 | 0.810 | 0.245 | 0.975 | 0.230 | 0.025 | 0.770 |
-| test_ood_division | static | 0.990 | 0.840 | 0.305 | 0.715 | 0.330 | 0.965 | 0.305 | 0.030 | 0.695 |
+Test-in-distribution confirms that best-of-N helps both methods. Stable-RTW has slightly higher mean reranked exact at N=8 (`0.133` vs `0.120`) and cleaner selected legality, but paired overlap is mixed (`Stable-only=8`, `static-only=6`, `p=0.7905`). Static is also better at N=4 on exactness.
 
-## Current empirical conclusion
+## Current paper-ready claim
 
-Static v0.6b generally beats adaptive v0.6b on seed 0.
+Use this restrained wording:
 
-Static is better on:
+> Verifier-guided best-of-N is a general inference-time harness mechanism. Stable-RTW shows a robust best-of-N advantage on validation and a smaller/mixed advantage on test-in-distribution. The result supports a two-stage harness claim: training-time reward stability improves legal candidate formation/rankability, while inference-time verifier selection converts some latent exact candidates into task success. The benefit must be reported with sampling budget, paired uncertainty, generated tokens, wall-clock time, and cost-per-exact.
 
-- validation exact correctness
-- validation valid expression
-- validation number legality
-- in-distribution valid expression
-- OOD-division valid expression
-- OOD-division exact correctness
-- lower reward-hacking candidate rate
+Avoid these overclaims:
 
-Adaptive is only narrowly competitive in a few areas, such as training parseability and OOD-long valid expression by a tiny margin.
+- Stable-RTW universally dominates static shaping.
+- best-of-N improvement is exclusively a Stable-RTW effect.
+- observed wall-clock differences prove static is intrinsically slower.
+- exact correctness improved because the selector used exact correctness; it did not.
 
-Therefore:
+## Recommended next gate
 
-> Do not claim that adaptive RTW works better than static shaping yet.
+Before adding OOD splits or more seeds, do one of the following:
 
-## Current strongest supported claim
+1. **Paper consolidation path:** freeze v0.9B as the main result, update the paper outline around the two-stage harness story, and add plots/tables from `outputs/v09_seed_expansion_summary.csv` and `outputs/v09_seed_expansion_paired.json`.
+2. **Mechanism audit path:** inspect candidate banks for failure modes: valid-but-wrong arithmetic, missing/all-extra numbers, max-token clipping, selector near-misses, and cases where oracle exact exists but practical selector would fail under alternative scoring.
+3. **Cost audit path:** rerun a tiny controlled latency/token audit with identical process/cache conditions before making any method-specific cost comparison.
 
-The strongest currently supported claim is narrower:
-
-> Dense verifier-aligned auxiliary rewards can teach a small LLM the surface and partial legality requirements of a Countdown verifier harness, moving it from zero usable behavior into parseable and partially legal expression construction.
-
-This is meaningful because base CUDA evals showed all-zero behavior:
-
-```text
-format: 0.0
-expression_parseable: 0.0
-uses_allowed_numbers: 0.0
-valid_expression: 0.0
-exact_correct: 0.0
-```
-
-v0.6b GRPO then reached, on validation:
-
-```text
-parseable: 0.935-0.960
-allowed_numbers: 0.370-0.440
-valid_expression: 0.345-0.415
-exact_correct: 0.035-0.045
-```
-
-## Diagnosis of adaptive underperformance
-
-The adaptive teacher appears to overreact to dense reward components.
-
-Final adaptive weights:
-
-```text
-format:                  0.0227
-valid_expression:        0.2236
-number_multiset_f1:      0.0879
-allowed_ops:             0.0707
-numeric_distance_reward: 0.3161
-brevity:                 0.0230
-```
-
-Static weights remain:
-
-```text
-all components: 0.2000
-```
-
-Likely issue:
-
-> The adaptive controller suppresses number-multiset and allowed-op pressure too aggressively while emphasizing numeric-distance reward too much.
-
-This risks producing parseable, numerically close, but verifier-invalid expressions.
-
-## Literature positioning
-
-Relevant anchors found during inspection:
-
-| Topic | Paper |
-|---|---|
-| RTW source | `Reward Training Wheels: Adaptive Auxiliary Rewards for Robotics Reinforcement Learning`, arXiv:2503.15724 |
-| GACL source | `GACL: Grounded Adaptive Curriculum Learning with Active Task and Performance Monitoring`, arXiv:2508.02988 |
-| earlier training-wheels RL idea | `Learning with Training Wheels: Speeding up Training with a Simple Controller for Deep Reinforcement Learning`, arXiv:1812.05027 |
-| related LLM areas | RLVR, process supervision, curriculum learning for LLMs, verifier-based math/code training |
-
-Novelty should be framed carefully.
-
-Not novel enough:
-
-> Auxiliary rewards help LLMs.
-
-More defensible:
-
-> RTW-style dynamic auxiliary reward weighting can be adapted to verifier-based LLM post-training, with decomposed traces exposing how harness skills are acquired or reward-hacked.
-
-## Design strengths
-
-The current design has strong scientific guardrails:
-
-1. Strict verifier is the source of truth.
-2. Primary correctness is separated from auxiliary reward.
-3. Reward components are separately logged.
-4. OOD splits exist:
-   - in-distribution
-   - longer tasks
-   - division-enabled tasks
-5. Harness levels exist:
-   - `prompt_low`
-   - `prompt_mid`
-   - `prompt_high`
-6. Failure modes are explicitly tracked:
-   - tag farming
-   - parseable nonsense
-   - auxiliary dominance
-   - harness overfitting
-7. Tests pass.
-8. Dataset is deterministic and verifier-backed.
-
-## Design weaknesses / paper risks
-
-Main blockers to a strong paper:
-
-1. Only seed 0 has been evaluated for the core adaptive/static comparison.
-2. Static currently beats adaptive.
-3. Manual and random baselines are not complete for v0.6b.
-4. Primary exact correctness is still low.
-5. OOD-long remains very weak.
-6. Harness-shift matrix has not yet been run.
-7. There is no actual paper manuscript yet, only research docs.
-
-## Paper-readiness verdict
-
-Current status:
-
-> Promising project, not paper-ready for the strong adaptive RTW claim.
-
-| Area | Status |
-|---|---|
-| Research framing | Good |
-| Code scaffold | Good |
-| Verifier correctness | Good |
-| Logging/diagnostics | Good |
-| Dataset | Good for first study |
-| Literature motivation | Plausible |
-| Main adaptive claim | Not supported yet |
-| Baseline matrix | Incomplete |
-| Multi-seed evidence | Missing |
-| Harness-shift evidence | Missing |
-| Paper draft | Not started |
-
-## Recommended next step: v0.6c teacher stability
-
-Do **not** expand seeds yet as if adaptive won.
-
-First implement and test a more stable adaptive teacher:
-
-1. **Delayed adaptation**
-   - Keep balanced initial weights for about the first 50 steps.
-
-2. **Lower update rate**
-   - Current `lr = 0.30` is probably too aggressive.
-   - Try `lr = 0.05-0.10`.
-
-3. **Floors for legality wheels**
-   - Prevent `number_multiset_f1` and `allowed_ops` from collapsing too low.
-   - Candidate floors:
-     ```text
-     number_multiset_f1: 0.15-0.20
-     allowed_ops:        0.10-0.15
-     ```
-
-4. **Cap numeric-distance reward weight**
-   - Numeric distance should not dominate legality.
-   - Candidate cap:
-     ```text
-     numeric_distance_reward: 0.20-0.25
-     ```
-
-5. **Preserve primary correctness semantics**
-   - Exact correctness remains verifier-owned.
-   - Dense auxiliaries remain training wheels only.
-
-## v0.6c comparison gate
-
-Compare:
-
-```text
-static v0.6b 300 seed0
-adaptive v0.6b 300 seed0
-adaptive-stable v0.6c 300 seed0
-```
-
-v0.6c should beat or closely match static on:
-
-| Metric | Target |
-|---|---|
-| validation valid_expression | beat or match static 0.415 |
-| validation exact_correct | beat or match static 0.045 |
-| test_in_dist valid_expression | beat or match static 0.415 |
-| OOD-division valid_expression | beat or match static 0.305 |
-| reward_hacking_candidate | lower than static |
-| teacher weights | interpretable, no collapse into numeric distance |
-
-Only if v0.6c works on seed 0 should the project expand to seeds 1 and 2.
-
-## Suggested roadmap
-
-1. Commit current v0.6b/v0.6c work.
-2. Finish v0.6c teacher-stability implementation.
-3. Run v0.6c seed 0 under identical settings.
-4. Evaluate validation, in-distribution, OOD-long, and OOD-division splits.
-5. If v0.6c beats or matches static, run 3 seeds for:
-   - static
-   - adaptive v0.6b
-   - adaptive-stable v0.6c
-6. Add manual/random baselines only after the adaptive teacher is credible.
-7. Run harness-shift matrix after reward adaptation is stable.
-8. Start actual manuscript draft.
-
-## Suggested honest interim claim
-
-Until v0.6c or multi-seed results improve, the honest claim is:
-
-> Dense legality rewards create a usable verifier-aligned learning signal for Countdown harness acquisition. A naive RTW adaptive teacher underperforms balanced static shaping on seed 0, suggesting that adaptive reward controllers require stability constraints such as delayed adaptation, legality floors, and numeric-distance caps.
-
-This is a useful research finding, but not yet the main paper result.
+Do **not** expand to all splits/seeds without preserving the current fixed task IDs, selector, sampling config, and cost accounting.

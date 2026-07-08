@@ -15,6 +15,16 @@ The default task is a Countdown-style arithmetic environment with a strict harne
 
 This is intended as a fast entry point. Once the pipeline is stable, the same harness/reward/controller pattern can be moved to code-generation tasks with unit tests.
 
+## Current status
+
+The current strongest result is the **v0.9B verifier-guided best-of-N seed expansion**:
+
+- Stable-RTW shows a robust validation advantage under fixed best-of-N reranking: at `N=8`, reranked exact is `0.133 ± 0.012` for Stable-RTW vs `0.067 ± 0.050` for static shaping over seeds 0/1/2.
+- Test-in-distribution confirms best-of-N as a useful general harness mechanism, but the Stable-specific edge is smaller/mixed: `0.133 ± 0.042` vs `0.120 ± 0.020` at `N=8`.
+- The practical reranker does **not** use exact correctness as an input; exactness is measured afterward with the strict verifier.
+
+See `docs/CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` and `docs/V09_BEST_OF_N_RERANKING_PLAN.md` for the paper-safe interpretation, paired overlap tables, and cost notes.
+
 ## Repo layout
 
 ```text
