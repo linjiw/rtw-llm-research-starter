@@ -25,6 +25,8 @@ The current strongest result is the **v0.9B verifier-guided best-of-N seed expan
 
 See `docs/CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` and `docs/V09_BEST_OF_N_RERANKING_PLAN.md` for the paper-safe interpretation, paired overlap tables, and cost notes.
 
+Autonomous research iterations follow `docs/AUTORESEARCH_PROGRAM.md` (goal, fixed experiment budget, keep/discard rules, prioritized queue) with results recorded in `docs/EXPERIMENT_LEDGER.md`.
+
 ## Repo layout
 
 ```text
