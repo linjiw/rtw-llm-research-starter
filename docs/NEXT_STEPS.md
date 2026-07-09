@@ -21,22 +21,28 @@ epoch of 2000 gold completions + GRPO moved 5×. This is the
 shaping-vs-capability characterization's positive arm, with pre-registered
 guardrails. "Hard = capability floor" is re-scoped to RL-from-base.
 
-### v0.13 follow-up queue (in order)
+### v0.13 follow-up queue (updated ~00:30 UTC 2026-07-10)
 
-1. **Score the SFT-only test arm** when its bank lands (~20 min) — completes
-   the decomposition table; expect ~0.2 oracle@8.
-2. **v0.13 seeds 1/2** (~2×4.5 h GPU): the KEEP is seed-0; the program's own
-   standard (G0-seeds12 lesson) requires the 3-seed distribution before any
-   paper number. Same runner with SFT seed + GRPO teacher seed varied.
-3. **OOD evaluation** of the v13 checkpoint on the frozen OOD IDs
-   (`test_ood_long`, `test_ood_division` with the len-filters) vs stable —
-   does the legality capability transfer out of distribution, or did SFT
-   overfit the 3–5-number/4-op envelope? Cheap (~2 banks, eval-only) and
-   load-bearing for the "capability lever" claim.
-4. **Paper integration**: the characterization paper now has its contrast —
-   shaping (2 strikes, walls unmoved) vs capability (SFT, both walls moved
-   5×) with identical protocol/guardrails. Update
-   `CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` after seeds 1/2.
+1. ~~Score the SFT-only test arm~~ **DONE** — full ladder on test@8:
+   base 0.02 → stable 0.10 → SFT-only 0.32 → SFT+GRPO 0.50. Both stages
+   contribute on both splits; SFT supplies the bigger jump, GRPO adds
+   +0.18–0.22 absolute.
+2. **RUNNING (one background task, sequential):** v0.13 seeds 1/2
+   (`scripts/run_v13_seeds12.sh` → `outputs/logs/v13_seeds12.log`; SFT +
+   GRPO + frozen best-of-N per seed, then 3-seed scoring to
+   `outputs/v13_score_seeds012_*.json`), followed by the OOD eval
+   (`scripts/run_ood_eval.sh` → `outputs/logs/ood_eval.log`, includes the
+   v13sft arm + mandatory base arm). ~6–8 h total.
+3. **When they land:** fill ledger rows `v13-seeds12` and `ood-eval`; the
+   v13 3-seed check is confirmatory (seed-0 discordants 16–23-vs-0–2 are far
+   beyond seed noise, but the program standard applies); OOD is the open
+   question — did SFT overfit the 3–5-number/4-op envelope?
+4. **Paper integration** after seeds 1/2: update
+   `CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` with the
+   shaping-vs-capability contrast (2 strikes vs 5×) — pending the escalated
+   claim-wording decision for the framing.
+5. **Then:** rank-2 harness-shift eval; Paper-2 base probe
+   (`scripts/14_microcode_base_probe.py`) in the next idle window.
 
 ## Program direction (from `STRATEGIC_REPIVOT_20260709.md`)
 
