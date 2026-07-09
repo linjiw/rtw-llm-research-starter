@@ -43,30 +43,30 @@ land in `EXPERIMENT_LEDGER.md`.
 3. Update `GATE0_LOCAL_LADDER_REPORT.md` with the 3-seed table and the
    ledger row `G0-seeds12`.
 
-## Step 2 — Mechanism audit while the seeds-1/2 job holds the GPU (CPU-only)
+## Step 2 — DONE: mechanism audit (`MECHANISM_AUDIT_LOCAL_BANKS_20260709.md`)
 
-C2's verdict was DISCARD and the mediator finding says difficulty mix is not
-the bottleneck — so find out what is. Failure taxonomy over the local
-candidate banks (Gate 0 base/static/stable + v10c2; all under
-`outputs/bestofn/*_local_seed0_*`): valid-but-wrong vs unparseable vs
-clipping-at-256 vs selector near-misses (oracle−practical gap is zero on
-every local run so far — check that holds and why), where exact candidates
-are lost, and whether C2's longer completions explain its higher capped
-rate. Existing tool: `scripts/06_failure_taxonomy.py` (extend additively if
-needed). Output: a short doc + queue update; this determines whether the
-C2 revision (competence retune) is worth its GPU cost, and what v0.11
-should even target. The Gate 0 banks already hint: valid on only ~13–17% of
-candidates and `correct_given_parseable` ≈ 0.04 — candidate formation and
-target search are both open bottlenecks.
+Findings (ledger row `audit-banks`): ranking is NOT the bottleneck (selector
+near-misses = 0 on every bank — oracle == practical because exact candidates
+always carry clean legality features); number-set legality failures are
+53–64% of trained candidates; exactness is almost entirely easy-tier;
+`no_answer_span` is 256-token clipping (v10c2 3× worse — its cost regression
+bought truncation, not search).
 
-## Step 3 — Decide the C2 revision question (after Steps 1–2)
+**C2 revision question: settled, NO revision.** Difficulty-mix changes
+cannot fix legality/truncation losses. Curriculum theme closed at strike
+one with an informative mechanism.
 
-One revision attempt max (two-strike rule). Case FOR: test_in_dist 5-vs-0
-discordants (p=0.062) + better legality/hack guardrails. Case AGAINST:
-primary flat, cost regressed 1.8×, mediator saturated. The mechanism audit
-(Step 2) should settle it; if it stays ambiguous, default to NO revision and
-move to the queue (the theme has one strike; spend GPU where the audit says
-the bottleneck is).
+## Step 3 — Next method iteration (design first, advisor-review, then GPU)
+
+From the audit, in order of expected leverage (teacher-side, mutable):
+1. **v0.12 number-legality-targeted reward** — attack the 60% class:
+   raise the number_multiset_f1 floor/weight or gate aux reward on
+   number-set legality in `adaptive_stable`. One variable; design doc
+   before code (program §5).
+2. **Truncation/close-tag shaping** — make capped rambles into scored
+   attempts (v10c2 showed the cost of ignoring it).
+Value-search help is premature until legality improves (legal-but-wrong is
+only ~12% and mostly far from target).
 
 ## Standing queue after v0.10 (from AUTORESEARCH_PROGRAM.md §6)
 
