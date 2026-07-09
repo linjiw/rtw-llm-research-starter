@@ -60,3 +60,28 @@ so `--skip_if_complete` will not cross-contaminate fields). Stage validation
 first (~5–6 GPU-h) to read the effect before committing test_in_dist. OOD:
 seed0 + base first to de-risk before seeds 1/2. All GPU-gated behind the
 Paper-1 v0.13 scoring and the shared A10G.
+
+## Rank 3b — v0.13 SFT capability OOD transfer (added post-v13-KEEP)
+
+The OOD runner now includes a **v13sft arm** (`grpo_v13_sft_seed0_300`), because
+v0.13 is the paper's positive capability result and the load-bearing question
+for the "capability lever" claim is: does the SFT-taught legality/construction
+CAPABILITY transfer out of distribution, or did SFT overfit the training
+envelope (3–5 numbers, ops {+,-,*})?
+
+- test_ood_division = 5-number tasks introducing `/` (an operator NOT in the
+  2000 fine-tune examples — so this is BOTH number-count and operator OOD for
+  v13). test_ood_long = 6-number tasks (number-count OOD; ops in-distribution).
+- **PRIMARY read (descriptive, vs base + stable):** candidate legality rate and
+  P(exact|legal) of v13sft on each OOD split. In-distribution v13 hit legality
+  ~1.0 / P(exact|legal) ~0.25.
+  - If v13 legality stays high on test_ood_long (ops in-dist, only more
+    numbers) but drops on test_ood_division (novel `/`) → SFT taught
+    *transferable expression syntax* but not the unseen operator. Clean,
+    publishable "capability transfers within the operator envelope" result.
+  - If legality collapses on BOTH → SFT overfit the exact envelope; the
+    capability claim must be scoped to in-distribution. Honest either way.
+- `/`-adoption rate for v13sft on division is the specific diagnostic (did it
+  ever try the unseen operator?).
+- exact stays expected-floor on 5–6-number tasks (the value-search wall); read
+  legality/transfer, not exact. seed0 only until v13 seeds 1/2 land.

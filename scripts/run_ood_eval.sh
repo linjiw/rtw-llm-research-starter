@@ -51,4 +51,14 @@ for seed in $SEEDS; do
   done
 done
 
+# v0.13 SFT-warmup arm (NEXT_STEPS item 3): does the SFT-taught legality
+# CAPABILITY transfer OOD, or did it overfit the 3-5-number / 4-op training
+# envelope? Load-bearing for the "capability lever" claim. seed0 only until
+# v13 seeds 1/2 exist; add them here when they do.
+if [ -d "outputs/checkpoints/grpo_v13_sft_seed0_300" ]; then
+  bestofn v13sft 0 "$SPLIT" \
+    --adapter_path "outputs/checkpoints/grpo_v13_sft_seed0_300" \
+    --training_seed 0
+fi
+
 echo "=== $(date -Is) OOD eval (${SPLIT}) complete"
