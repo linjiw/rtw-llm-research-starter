@@ -1,68 +1,47 @@
 # Next Steps
 
-Updated: 2026-07-09 (morning). This is the concrete execution plan; the
-governing protocol is `AUTORESEARCH_PROGRAM.md`, results land in
+Updated: 2026-07-09 (after Gate 0 completed). This is the concrete execution
+plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`, results land in
 `EXPERIMENT_LEDGER.md`.
 
 ## Where we are right now
 
-- **Gate 0 (local baseline ladder) is running** on the A10G
-  (`scripts/run_gate0_baseline_ladder.sh`, log
-  `outputs/logs/gate0_ladder.log`). Static seed-0 training finished healthy
-  (train-time diagnostics: open-tag 0.93, parseable 0.80, exact 0.029 — in
-  family with v0.6b); Stable-RTW seed-0 is training now (~67% at last check).
-  Remaining stages: 6 best-of-N evals (base/static/stable × validation/
-  test_in_dist, ~25–30 min each at ~6 s/example) →
-  `outputs/gate0_local_ladder_summary.csv` + `_paired.json`.
-- **v0.10 task curriculum is implemented, advisor-reviewed, and committed**
-  (`faf39ac`, `4455033`). Runner `scripts/run_v10_c2_pilot.sh` is ready and
-  blocked only on the GPU.
+- **Gate 0 is done and scored** — see `GATE0_LOCAL_LADDER_REPORT.md`.
+  Infra gate PASS (both trainings healthy; stable matches its archived range,
+  val@8 = 0.12). Method-ordering gate NOT CONFIRMED on 1 seed: local static
+  improved on the TRL 1.7 stack (val@8 = 0.14), paired stable-vs-static is
+  1-vs-2 discordants, p = 1.0 — statistically indistinguishable. Stable keeps
+  a ~2× token/wall-clock cost advantage at similar exactness.
+- **Two GPU jobs are queued sequentially in one background task** (started
+  2026-07-09 ~04:45 UTC):
+  1. `scripts/run_v10_c2_pilot.sh` → `outputs/logs/v10_c2_pilot.log`
+     (60-step smoke with curriculum-log gate → 300-step C2 pilot → frozen
+     best-of-N; ~3.5 h);
+  2. `scripts/run_gate0_seeds12.sh` → `outputs/logs/gate0_seeds12.log`
+     (static+stable seeds 1/2 ladder to settle the stable-vs-static question
+     locally; ~7 h; writes `outputs/gate0_local_ladder_seeds012_*`).
+- Training-loss defaults (`loss_type=dapo`, `scale_rewards=group`, `beta=0`)
+  are now pinned in `scripts/02_grpo_train.py` so future TRL bumps cannot
+  silently change ladder dynamics; note the archive-era stack differed (KL
+  penalty on), which is the leading explanation for the static shift.
 
-## Step 1 — Score Gate 0 (when the ladder finishes; no GPU needed)
-
-1. Read `outputs/gate0_local_ladder_summary.csv` and
-   `outputs/gate0_local_ladder_paired.json`.
-2. Pass criteria: local ladder ordering `base < static ≤ stable` on validation
-   `reranked_exact@8`, directionally consistent with archived v0.9B
-   (stable 0.133 vs static 0.067). Exact numbers will differ (new TRL/torch
-   versions); direction is what matters.
-3. Fill the `G0-repro` ledger row (keep/discard + lesson) and update the
-   "current best local checkpoint" pointer in the ledger header.
-4. If the ordering **fails** (stable ≤ static locally): stop, do not launch
-   v0.10. Diagnose with `scripts/05_check_run_health.py` +
-   `scripts/06_failure_taxonomy.py` on both checkpoints; the likely suspects
-   are library-version drift (TRL 1.7 vs the v0.9B-era stack) or an unhealthy
-   stable run. Escalate to the human if the archived result does not
-   reproduce directionally — that would weaken the paper's baseline story.
-
-## Step 2 — Launch v0.10 C2 (immediately after Gate 0 passes)
-
-```bash
-nohup ./scripts/run_v10_c2_pilot.sh > outputs/logs/v10_c2_pilot.log 2>&1 &
-```
-
-The runner self-gates: 60-step smoke → health check + curriculum-log
-assertions (probs sum to 1, tier floor holds, no starved tier, probs move
-after the 25-update delay) → 300-step pilot → best-of-N on frozen task IDs.
-Budget: ~2.5 h train + ~1 h eval.
-
-Watch for the smoke-specific failure: if `check_curriculum_log` aborts the
-run, read `curriculum_state.jsonl` — tier collapse or frozen probs is a
-controller bug, not a research result.
-
-## Step 3 — Score v0.10 C2 vs C0 (the first curriculum verdict)
+## Step 1 — Score v0.10 C2 vs C0 (when the pilot finishes)
 
 C0 = Gate 0 stable checkpoint (uniform sampling), C2 = adaptive curriculum.
-Both: same machine, same commit family, same frozen protocol.
+Both: same machine, same commit family, same frozen protocol. Caveat from the
+smoke: if `check_curriculum_log` aborted the run, read
+`curriculum_state.jsonl` first — tier collapse or frozen probs is a
+controller bug, not a research result.
 
-1. Paired per-task comparison on validation `reranked_exact@8`
-   (`scripts/08_summarize_v09_seed_expansion.py` pattern, or direct candidate
-   bank comparison), plus guardrails: test_in_dist, selected_valid,
-   number F1, reward-hack rate, tokens/wall-clock.
-2. Mediator check (this is the scientific payoff either way): compare
+1. Paired per-task comparison on validation `reranked_exact@8` (direct
+   candidate-bank comparison against
+   `outputs/bestofn/stable_local_seed0_*_limit50_n8`), plus guardrails:
+   test_in_dist, selected_valid, number F1, reward-hack rate,
+   tokens/wall-clock. One-seed caution learned from Gate 0: 50-task
+   discordant counts of 1–3 are noise — state the count, not just the delta.
+2. Mediator check (the scientific payoff either way): compare
    `group_reward_std` / `batch_group_variance_fraction` between C0 and C2
-   runs' `reward_components.jsonl`, and inspect tier occupancy in
-   `curriculum_state.jsonl`. Three outcomes:
+   `reward_components.jsonl`, and tier occupancy in `curriculum_state.jsonl`:
    - variance ↑ and exact ↑ → hypothesis supported (KEEP; proceed to C1 arm
      to show adaptivity matters, then seeds 1/2);
    - variance ↑ but exact flat → curriculum moves the mediator but the
@@ -70,11 +49,29 @@ Both: same machine, same commit family, same frozen protocol.
      two-strike rule to the theme;
    - variance flat → controller not steering effectively; check tier
      occupancy before concluding anything about curricula.
-3. Ledger row `v0.10-C2` + a short results section appended to
+3. Ledger row `v0.10-C2` + a results section appended to
    `V10_TASK_CURRICULUM_PLAN.md` (plan → result → safe conclusion →
    overclaims to avoid, like the V06–V09 docs).
 
-## Step 4 — Branch on the C2 verdict
+## Step 2 — Score Gate 0 seeds 1/2 (when the second job finishes)
+
+1. Read `outputs/gate0_local_ladder_seeds012_summary.csv` and `_paired.json`
+   (pools seeds 0/1/2 automatically — the seed-0 banks are already in the
+   glob).
+2. This settles the local baseline story with the same evidence standard as
+   archived v0.9B (3 seeds, paired overlap):
+   - stable > static locally → baseline story intact on the new stack; paper
+     claims can cite local numbers;
+   - indistinguishable or static ≥ stable → the v0.9B stable-vs-static
+     advantage is stack-dependent. That reframes the paper: the robust claims
+     become (a) shaping ≫ base, (b) best-of-N as harness mechanism, (c)
+     stable's 2× cost advantage, (d) whatever v0.10 shows about task
+     curricula on top of stable. **Escalate to the human before rewording the
+     paper's main claim** (program §7 escalation rule).
+3. Update `GATE0_LOCAL_LADDER_REPORT.md` with the 3-seed table and the
+   ledger row `G0-seeds12`.
+
+## Step 3 — Branch on the C2 verdict
 
 - **KEEP:** run C1 (manual schedule) as the adaptivity ablation; then seeds
   1/2 for C2 under the frozen protocol; then draft the v0.10 section for the
@@ -82,9 +79,12 @@ Both: same machine, same commit family, same frozen protocol.
 - **DISCARD:** one revision attempt max (per the two-strike rule) — the most
   likely lever is the competence signal (τ/σ constants or the gate
   threshold), and only if tier occupancy shows the controller actually
-  steered. Otherwise move to the next queue block: mechanism audit of Gate 0
-  candidate banks (failure taxonomy: valid-but-wrong, clipping, selector
-  near-misses) to find where exact candidates are lost.
+  steered. Otherwise move to the next queue block: mechanism audit of the
+  Gate 0 candidate banks (failure taxonomy: valid-but-wrong, clipping,
+  selector near-misses) to find where exact candidates are lost. The Gate 0
+  banks already hint at this: trained models produce valid expressions on
+  only ~13–17% of candidates, and `correct_given_parseable` is ~0.04 — both
+  candidate formation and target search remain open bottlenecks.
 
 ## Standing queue after v0.10 (from AUTORESEARCH_PROGRAM.md §6)
 
