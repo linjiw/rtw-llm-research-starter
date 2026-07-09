@@ -77,17 +77,32 @@ selector:         practical_score (never uses exact correctness as input)
 ## 5. The loop (one iteration)
 
 ```text
-1. PICK    take the top item from the queue (section 6)
-2. COMMIT  commit the code state before any CUDA run (archival invariant)
-3. TRAIN   run the 300-step GRPO variant under the fixed budget
-4. HEALTH  scripts/05_check_run_health.py — abort iteration if unhealthy
-5. EVAL    best-of-N on frozen validation + test_in_dist task IDs, N=1,4,8
-6. SCORE   paired comparison vs current best; check guardrails
-7. RECORD  append a row to docs/EXPERIMENT_LEDGER.md (keep or discard + why),
-           update docs status if the best method changed, commit
-8. UPDATE  reorder/extend the queue based on what was learned; if evidence
-           contradicts a queue hypothesis, rewrite it rather than running it
+1. PICK      take the top item from the queue (section 6)
+2. DESIGN    write/refresh the V0x plan doc for the variant
+3. ADVISE    advisor review of the design (independent subagent, adversarial:
+             find flaws that would waste GPU budget or corrupt the comparison)
+             → fold accepted findings back into the plan doc
+4. IMPLEMENT one-variable code change, default-off flag, unit tests
+5. VALIDATE  tests + lint + CPU dry-run, then advisor review of the diff
+             (multi-angle code review, verify each finding) → fix before GPU
+6. COMMIT    commit the code state before any CUDA run (archival invariant)
+7. TRAIN     smoke (60 steps, health-gated) then the 300-step run
+8. HEALTH    scripts/05_check_run_health.py — abort iteration if unhealthy
+9. EVAL      best-of-N on frozen validation + test_in_dist task IDs, N=1,4,8
+10. SCORE    paired comparison vs current best; check guardrails
+11. RECORD   append a row to docs/EXPERIMENT_LEDGER.md (keep or discard + why),
+             update docs status if the best method changed, commit
+12. UPDATE   reorder/extend the queue based on what was learned; if evidence
+             contradicts a queue hypothesis, rewrite it rather than running it
 ```
+
+The ADVISE/VALIDATE checkpoints (steps 3 and 5) are the executor/advisor
+pattern: the main loop does the mechanical work; independent higher-scrutiny
+reviews happen before committing to an approach and before declaring done.
+GPU hours are the scarce resource here, so review is always cheaper than a
+corrupted run. v0.10 set the precedent: the design review restructured the
+competence signal and killed a repeat-exposure confound; the diff review
+found three confirmed silent-corruption bugs that unit tests had missed.
 
 Rules of engagement for the agent:
 
