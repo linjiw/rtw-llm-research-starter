@@ -146,3 +146,63 @@ Failure modes to watch: collapse-to-easy (curriculum farms legality on easy
 tier → validation exact stagnates; ε floor + report per-tier occupancy),
 mediator-without-outcome (variance up, exact flat → hypothesis wrong in an
 informative way — record and stop the theme per the two-strike rule).
+
+## Results (C2 pilot, seed 0, 2026-07-09)
+
+Runner completed clean: smoke gate passed (60 updates, draws easy/med/hard =
+94/82/68, probs moved after delay), 300-step pilot healthy (`health_final`
+issues: none), both frozen best-of-N evals collected
+(`outputs/bestofn/v10c2_local_seed0_*_limit50_n8`).
+
+### Primary + paired (practical selector, vs C0 = grpo_stable_seed0_300)
+
+| split | N | C0 | C2 | both | C2-only | C0-only | p | Δ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| validation | 4 | 0.04 | 0.06 | 0 | 3 | 2 | 1.000 | +0.02 |
+| validation | 8 | 0.12 | 0.10 | 2 | 3 | 4 | 1.000 | −0.02 |
+| test_in_dist | 4 | 0.04 | 0.08 | 1 | 3 | 1 | 0.625 | +0.04 |
+| test_in_dist | 8 | 0.04 | 0.14 | 2 | 5 | 0 | 0.062 | +0.10 |
+
+Guardrails at N=8: selected_valid up on both splits (val 0.66 vs 0.58; test
+0.72 vs 0.58); number F1 slightly down on validation (0.920 vs 0.953), up on
+test (0.962 vs 0.933); selected reward-hack rate down (0.30 vs 0.42 val,
+0.28 vs 0.40 test). **Cost regressed ~1.8×**: C2 completions are longer
+(mean 116 vs 64 tokens/candidate; capped-at-256 rate 0.37 vs 0.17), so
+val N=8 cost 46.3k tokens / 2806 s vs C0's 25.7k / 1359 s.
+
+### Mediator + controller behavior
+
+- Group reward variance (the hypothesized mediator) did NOT move: mean
+  per-group reward std 0.231 (C2) vs 0.235 (C0); batch group-variance
+  fraction 0.968 vs 0.969. Training exact rate 0.036 vs 0.030.
+- The controller DID steer: tier probs moved off uniform (hard down-weighted
+  to ~0.20 mid-run, recovering by end), cumulative draws easy/med/hard =
+  453/423/328, 1204 unique tasks seen, easy tier reached the exact phase at
+  ~update 205 while medium/hard stayed in legality phase.
+
+### Safe conclusion
+
+> On one seed, the adaptive task curriculum is statistically
+> indistinguishable from uniform sampling on the primary metric (validation
+> Δ at N=8 = −0.02, discordants 3-vs-4, p=1.0). The test_in_dist N=8 signal
+> (5-vs-0 discordants, p=0.062, Δ=+0.10) is suggestive but is a guardrail
+> split, not the primary, and comes with a ~1.8× token/wall-clock cost
+> regression driven by longer completions. The curriculum steered sampling
+> as designed but did not move the hypothesized mediator (group reward
+> variance) — this is the "variance flat, controller steering" outcome:
+> the bottleneck appears not to be difficulty mix at this model scale.
+
+Overclaims to avoid: "task curriculum improves OOD/test exactness" (one
+seed, guardrail split, p>0.05); "curriculum is cost-neutral" (it is not —
+the cost guardrail regressed); "the mediator hypothesis is falsified"
+(variance was already near-saturated: 97% of groups have nonzero variance
+under Stable-RTW reward shaping, leaving the mediator little room to move).
+
+### Verdict
+
+Primary decision rule says **DISCARD** (no clear validation discordant
+advantage; cost guardrail regressed). Per the two-strike rule the theme gets
+at most one revision; the only revision worth considering is competence-
+signal retuning (τ/σ, gate threshold) IF pursuing the test_in_dist signal is
+judged worth ~3.5 h GPU — but note the primary-metric case for it is weak.
+Recorded as ledger row `v0.10-C2`.

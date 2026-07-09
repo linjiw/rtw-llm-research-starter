@@ -1,59 +1,31 @@
 # Next Steps
 
-Updated: 2026-07-09 (after Gate 0 completed). This is the concrete execution
-plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`, results land in
-`EXPERIMENT_LEDGER.md`.
+Updated: 2026-07-09 (after the v0.10 C2 verdict). This is the concrete
+execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`, results
+land in `EXPERIMENT_LEDGER.md`.
 
 ## Where we are right now
 
-- **Gate 0 is done and scored** — see `GATE0_LOCAL_LADDER_REPORT.md`.
-  Infra gate PASS (both trainings healthy; stable matches its archived range,
-  val@8 = 0.12). Method-ordering gate NOT CONFIRMED on 1 seed: local static
-  improved on the TRL 1.7 stack (val@8 = 0.14), paired stable-vs-static is
-  1-vs-2 discordants, p = 1.0 — statistically indistinguishable. Stable keeps
-  a ~2× token/wall-clock cost advantage at similar exactness.
-- **Two GPU jobs are queued sequentially in one background task** (started
-  2026-07-09 ~04:45 UTC):
-  1. `scripts/run_v10_c2_pilot.sh` → `outputs/logs/v10_c2_pilot.log`
-     (60-step smoke with curriculum-log gate → 300-step C2 pilot → frozen
-     best-of-N; ~3.5 h);
-  2. `scripts/run_gate0_seeds12.sh` → `outputs/logs/gate0_seeds12.log`
-     (static+stable seeds 1/2 ladder to settle the stable-vs-static question
-     locally; ~7 h; writes `outputs/gate0_local_ladder_seeds012_*`).
-- Training-loss defaults (`loss_type=dapo`, `scale_rewards=group`, `beta=0`)
-  are now pinned in `scripts/02_grpo_train.py` so future TRL bumps cannot
-  silently change ladder dynamics; note the archive-era stack differed (KL
-  penalty on), which is the leading explanation for the static shift.
+- **Gate 0 scored** (`GATE0_LOCAL_LADDER_REPORT.md`): infra PASS; method
+  ordering (stable vs static) NOT CONFIRMED on 1 seed; stable keeps a ~2×
+  cost advantage. Loss defaults pinned in `scripts/02_grpo_train.py`.
+- **v0.10 C2 scored: DISCARD** (ledger row `v0.10-C2`, results section in
+  `V10_TASK_CURRICULUM_PLAN.md`). Primary metric flat (val@8 0.10 vs 0.12,
+  3-vs-4 discordants, p=1.0), cost regressed ~1.8× (longer completions).
+  test_in_dist@8 showed 5-vs-0 discordants (p=0.062) — suggestive, but a
+  guardrail split on one seed. Mechanistically: the controller steered as
+  designed, but group reward variance (the mediator) was already ~97%
+  saturated under Stable-RTW — difficulty mix is not the exact-search
+  bottleneck at 0.5B. Theme has strike one; per the two-strike rule at most
+  one revision (competence-signal retune), and only if the test_in_dist
+  signal is judged worth ~3.5 h GPU.
+- **Running now:** `scripts/run_gate0_seeds12.sh` →
+  `outputs/logs/gate0_seeds12.log` (static+stable seeds 1/2, ~7 h; writes
+  `outputs/gate0_local_ladder_seeds012_*`). Started ~07:48 UTC.
+- **infra-batchgen landed** (default-off `--hf_gen_mode batched`); GPU
+  acceptance gate still pending an idle window (see standing queue).
 
-## Step 1 — Score v0.10 C2 vs C0 (when the pilot finishes)
-
-C0 = Gate 0 stable checkpoint (uniform sampling), C2 = adaptive curriculum.
-Both: same machine, same commit family, same frozen protocol. Caveat from the
-smoke: if `check_curriculum_log` aborted the run, read
-`curriculum_state.jsonl` first — tier collapse or frozen probs is a
-controller bug, not a research result.
-
-1. Paired per-task comparison on validation `reranked_exact@8` (direct
-   candidate-bank comparison against
-   `outputs/bestofn/stable_local_seed0_*_limit50_n8`), plus guardrails:
-   test_in_dist, selected_valid, number F1, reward-hack rate,
-   tokens/wall-clock. One-seed caution learned from Gate 0: 50-task
-   discordant counts of 1–3 are noise — state the count, not just the delta.
-2. Mediator check (the scientific payoff either way): compare
-   `group_reward_std` / `batch_group_variance_fraction` between C0 and C2
-   `reward_components.jsonl`, and tier occupancy in `curriculum_state.jsonl`:
-   - variance ↑ and exact ↑ → hypothesis supported (KEEP; proceed to C1 arm
-     to show adaptivity matters, then seeds 1/2);
-   - variance ↑ but exact flat → curriculum moves the mediator but the
-     bottleneck is elsewhere — informative negative, record and apply the
-     two-strike rule to the theme;
-   - variance flat → controller not steering effectively; check tier
-     occupancy before concluding anything about curricula.
-3. Ledger row `v0.10-C2` + a results section appended to
-   `V10_TASK_CURRICULUM_PLAN.md` (plan → result → safe conclusion →
-   overclaims to avoid, like the V06–V09 docs).
-
-## Step 2 — Score Gate 0 seeds 1/2 (when the second job finishes)
+## Step 1 — Score Gate 0 seeds 1/2 (when the running job finishes)
 
 1. Read `outputs/gate0_local_ladder_seeds012_summary.csv` and `_paired.json`
    (pools seeds 0/1/2 automatically — the seed-0 banks are already in the
@@ -71,20 +43,30 @@ controller bug, not a research result.
 3. Update `GATE0_LOCAL_LADDER_REPORT.md` with the 3-seed table and the
    ledger row `G0-seeds12`.
 
-## Step 3 — Branch on the C2 verdict
+## Step 2 — Mechanism audit while the seeds-1/2 job holds the GPU (CPU-only)
 
-- **KEEP:** run C1 (manual schedule) as the adaptivity ablation; then seeds
-  1/2 for C2 under the frozen protocol; then draft the v0.10 section for the
-  paper (two-curriculum story: reward curriculum + task curriculum).
-- **DISCARD:** one revision attempt max (per the two-strike rule) — the most
-  likely lever is the competence signal (τ/σ constants or the gate
-  threshold), and only if tier occupancy shows the controller actually
-  steered. Otherwise move to the next queue block: mechanism audit of the
-  Gate 0 candidate banks (failure taxonomy: valid-but-wrong, clipping,
-  selector near-misses) to find where exact candidates are lost. The Gate 0
-  banks already hint at this: trained models produce valid expressions on
-  only ~13–17% of candidates, and `correct_given_parseable` is ~0.04 — both
-  candidate formation and target search remain open bottlenecks.
+C2's verdict was DISCARD and the mediator finding says difficulty mix is not
+the bottleneck — so find out what is. Failure taxonomy over the local
+candidate banks (Gate 0 base/static/stable + v10c2; all under
+`outputs/bestofn/*_local_seed0_*`): valid-but-wrong vs unparseable vs
+clipping-at-256 vs selector near-misses (oracle−practical gap is zero on
+every local run so far — check that holds and why), where exact candidates
+are lost, and whether C2's longer completions explain its higher capped
+rate. Existing tool: `scripts/06_failure_taxonomy.py` (extend additively if
+needed). Output: a short doc + queue update; this determines whether the
+C2 revision (competence retune) is worth its GPU cost, and what v0.11
+should even target. The Gate 0 banks already hint: valid on only ~13–17% of
+candidates and `correct_given_parseable` ≈ 0.04 — candidate formation and
+target search are both open bottlenecks.
+
+## Step 3 — Decide the C2 revision question (after Steps 1–2)
+
+One revision attempt max (two-strike rule). Case FOR: test_in_dist 5-vs-0
+discordants (p=0.062) + better legality/hack guardrails. Case AGAINST:
+primary flat, cost regressed 1.8×, mediator saturated. The mechanism audit
+(Step 2) should settle it; if it stays ambiguous, default to NO revision and
+move to the queue (the theme has one strike; spend GPU where the audit says
+the bottleneck is).
 
 ## Standing queue after v0.10 (from AUTORESEARCH_PROGRAM.md §6)
 
