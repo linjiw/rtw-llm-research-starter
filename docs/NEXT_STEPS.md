@@ -1,49 +1,32 @@
 # Next Steps
 
-Updated: 2026-07-09 (after the v0.10 C2 verdict). This is the concrete
-execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`, results
-land in `EXPERIMENT_LEDGER.md`.
+Updated: 2026-07-09 (~17:15 UTC, after Gate 0 seeds 1/2 scored). This is the
+concrete execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`,
+results land in `EXPERIMENT_LEDGER.md`.
 
 ## Where we are right now
 
-- **Gate 0 scored** (`GATE0_LOCAL_LADDER_REPORT.md`): infra PASS; method
-  ordering (stable vs static) NOT CONFIRMED on 1 seed; stable keeps a ~2×
-  cost advantage. Loss defaults pinned in `scripts/02_grpo_train.py`.
-- **v0.10 C2 scored: DISCARD** (ledger row `v0.10-C2`, results section in
-  `V10_TASK_CURRICULUM_PLAN.md`). Primary metric flat (val@8 0.10 vs 0.12,
-  3-vs-4 discordants, p=1.0), cost regressed ~1.8× (longer completions).
-  test_in_dist@8 showed 5-vs-0 discordants (p=0.062) — suggestive, but a
-  guardrail split on one seed. Mechanistically: the controller steered as
-  designed, but group reward variance (the mediator) was already ~97%
-  saturated under Stable-RTW — difficulty mix is not the exact-search
-  bottleneck at 0.5B. Theme has strike one; per the two-strike rule at most
-  one revision (competence-signal retune), and only if the test_in_dist
-  signal is judged worth ~3.5 h GPU.
-- **Running now:** `scripts/run_gate0_seeds12.sh` →
-  `outputs/logs/gate0_seeds12.log` (static+stable seeds 1/2, ~7 h; writes
-  `outputs/gate0_local_ladder_seeds012_*`). Started ~07:48 UTC.
-- **infra-batchgen landed** (default-off `--hf_gen_mode batched`); GPU
-  acceptance gate still pending an idle window (see standing queue).
+- **Gate 0 complete at 3 seeds** (ledger `G0-seeds12`, seeds-1/2 section in
+  `GATE0_LOCAL_LADDER_REPORT.md`): Stable-RTW directionally ahead of static
+  on both splits at N=8 (val 0.100±0.020 vs 0.073±0.058; pooled discordants
+  7-vs-3) but NOT significant (p=0.34) — the archived 11-vs-1/p=0.006
+  advantage is attenuated on TRL 1.7. The robust cross-stack claim is
+  **cost-per-exact** (stable ~0.58× tokens/wall-clock at equal-or-better
+  exactness). ⚠ **ESCALATED TO HUMAN: whether to reword the paper's main
+  claim** from "Stable-RTW improves best-of-N exactness" toward
+  "stack-conditional exactness edge + robust 2× efficiency edge". No paper
+  edits until answered.
+- **v0.10 C2: DISCARD** (ledger `v0.10-C2`; results in
+  `V10_TASK_CURRICULUM_PLAN.md`). Primary flat, cost regressed, mediator
+  (group reward variance) already ~97% saturated. Curriculum theme closed at
+  strike one — mechanism audit settled the revision question: NO revision.
+- **Mechanism audit done** (`MECHANISM_AUDIT_LOCAL_BANKS_20260709.md`):
+  ranking is not the bottleneck; number-set legality failures are 53–64% of
+  trained candidates; clipping eats the rest. This defines v0.12.
+- **GPU idle** as of ~17:05 UTC; infra-batchgen acceptance benchmark is the
+  designated idle-window task (launched — see standing queue).
 
-## Step 1 — Score Gate 0 seeds 1/2 (when the running job finishes)
-
-1. Read `outputs/gate0_local_ladder_seeds012_summary.csv` and `_paired.json`
-   (pools seeds 0/1/2 automatically — the seed-0 banks are already in the
-   glob).
-2. This settles the local baseline story with the same evidence standard as
-   archived v0.9B (3 seeds, paired overlap):
-   - stable > static locally → baseline story intact on the new stack; paper
-     claims can cite local numbers;
-   - indistinguishable or static ≥ stable → the v0.9B stable-vs-static
-     advantage is stack-dependent. That reframes the paper: the robust claims
-     become (a) shaping ≫ base, (b) best-of-N as harness mechanism, (c)
-     stable's 2× cost advantage, (d) whatever v0.10 shows about task
-     curricula on top of stable. **Escalate to the human before rewording the
-     paper's main claim** (program §7 escalation rule).
-3. Update `GATE0_LOCAL_LADDER_REPORT.md` with the 3-seed table and the
-   ledger row `G0-seeds12`.
-
-## Step 2 — DONE: mechanism audit (`MECHANISM_AUDIT_LOCAL_BANKS_20260709.md`)
+## Step 1 — v0.12 design: number-legality-targeted reward (in progress)
 
 Findings (ledger row `audit-banks`): ranking is NOT the bottleneck (selector
 near-misses = 0 on every bank — oracle == practical because exact candidates
@@ -56,17 +39,29 @@ bought truncation, not search).
 cannot fix legality/truncation losses. Curriculum theme closed at strike
 one with an informative mechanism.
 
-## Step 3 — Next method iteration (design first, advisor-review, then GPU)
+## Step 2 — Next method iteration (design first, advisor-review, then GPU)
 
 From the audit, in order of expected leverage (teacher-side, mutable):
 1. **v0.12 number-legality-targeted reward** — attack the 60% class:
    raise the number_multiset_f1 floor/weight or gate aux reward on
    number-set legality in `adaptive_stable`. One variable; design doc
-   before code (program §5).
+   before code (program §5), advisor review, then GPU (~3.5 h). Comparison:
+   paired vs C0 (`grpo_stable_seed0_300` banks) — stable-vs-stable, so
+   independent of the escalated paper-claim question.
 2. **Truncation/close-tag shaping** — make capped rambles into scored
    attempts (v10c2 showed the cost of ignoring it).
 Value-search help is premature until legality improves (legal-but-wrong is
 only ~12% and mostly far from target).
+
+## Step 3 — Human input needed (blocking paper edits only, not experiments)
+
+The paper's main claim: 3-seed local evidence supports "directional exactness
+edge, robust ~2× efficiency edge" rather than the archived "robust exactness
+edge". Options: (a) keep the v0.9B claim scoped to its stack and add the
+TRL 1.7 replication as a stack-sensitivity finding (honest and strengthens
+the reproducibility story), (b) recenter the paper on cost-per-exact, (c)
+spend more seeds to try to recover significance. Experiments continue on
+v0.12 regardless.
 
 ## Standing queue after v0.10 (from AUTORESEARCH_PROGRAM.md §6)
 

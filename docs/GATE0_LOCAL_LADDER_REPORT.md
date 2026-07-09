@@ -83,3 +83,46 @@ v0.10 C2 (its comparison is stable-vs-stable — uniform sampling vs adaptive
 curriculum on the same reward strategy, same stack, same machine — so it does
 not depend on the static question), and queue the static/stable seeds-1/2
 local expansion as the baseline-story diagnostic for the paper.
+
+---
+
+# Seeds 1/2 extension (completed 2026-07-09)
+
+Runner: `scripts/run_gate0_seeds12.sh`. Artifacts:
+`outputs/gate0_local_ladder_seeds012_summary.csv`, `_paired.json` (pool
+seeds 0/1/2 with the seed-0 banks).
+
+## 3-seed results (N=8, practical selector)
+
+| split | method | reranked exact | selected valid | reward hack | tokens | wall s |
+|---|---|---:|---:|---:|---:|---:|
+| validation | static | 0.073 ± 0.058 | 0.620 | 0.373 | 46.8k | 2457 |
+| validation | Stable-RTW | 0.100 ± 0.020 | 0.647 | 0.353 | 27.1k | 1433 |
+| test_in_dist | static | 0.087 ± 0.042 | 0.647 | 0.347 | 43.1k | 2285 |
+| test_in_dist | Stable-RTW | 0.107 ± 0.061 | 0.633 | 0.353 | 25.9k | 1355 |
+
+Pooled paired overlap at N=8: validation stable-only 7 vs static-only 3
+(p=0.34, Δ=+0.027±0.042); test_in_dist 10 vs 7 (p=0.63, Δ=+0.020±0.072).
+Per-seed N=8 deltas: validation −0.02/+0.06/+0.04, test +0.08/+0.04/−0.06 —
+stable ahead in 4 of 6 split×seed cells, behind only on seed 0.
+
+## 3-seed verdict
+
+> On the TRL 1.7 stack, Stable-RTW is **directionally ahead of static on both
+> splits at N=8 but not statistically distinguishable** (validation 7-vs-3
+> discordants, p=0.34, vs the archived 11-vs-1, p=0.0063). The effect that was
+> robust on the archive stack is present but attenuated here. What replicates
+> unambiguously is the **efficiency claim**: Stable-RTW reaches equal-or-better
+> exactness at ~0.58× the generated tokens and wall-clock of static, with
+> slightly lower reward-hack rate.
+
+Consequences:
+- The paper's stable-vs-static exactness advantage should be presented as
+  stack-conditional (strong on the v0.9B stack, directional-but-noisy on
+  TRL 1.7) unless more seeds recover significance. **Rewording the main claim
+  is a human decision — escalated, not applied** (program §7).
+- The cost-per-exact framing (stable ~2× cheaper at N=8) is the more robust
+  cross-stack claim and is already part of the v0.9 reporting requirements.
+- Leading mechanism for the shift: archive-era TRL trained with a KL penalty;
+  TRL 1.7 defaults (dapo loss, beta=0) benefit static shaping's longer
+  completions. Loss defaults are now pinned in `scripts/02_grpo_train.py`.
