@@ -290,3 +290,18 @@ McNemar arm-only 18–23 vs base-only 0–2 against every stable seed (even this
 underpowered surface clears p<1e-4 at 18-vs-0); diversity 4.00 distinct legal
 expr/task vs 1.33–1.73; cost 54 tok/cand, clip 0.000; verbatim-gold 5 vs
 novel 27 on overlap tasks. Both splits agree: **KEEP.**
+
+### SFT-only arm, test_in_dist (completes the decomposition)
+
+Easy legality 0.708 (held-out 0.750), P(exact|legal) 0.175,
+oracle@8 = rerank@8 = **0.320** (held-out 0.295), diversity 5.20 distinct
+legal expr/task, 54 tok/cand, clip 0.015, verbatim-gold 0 vs 9 novel on
+overlap tasks. Full ladder on test_in_dist at N=8:
+
+```text
+base ≈ 0.02 → stable (RL-only) ≈ 0.10 → SFT-only 0.32 → SFT+GRPO 0.50
+```
+
+Both stages contribute on both splits (val: 0.22 → 0.44; test: 0.32 → 0.50).
+SFT supplies the larger jump; GRPO consolidates (+0.18–0.22 absolute).
+Artifact: `outputs/v13_score_sftonly_test.json`.
