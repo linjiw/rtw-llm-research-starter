@@ -93,6 +93,14 @@ def main() -> None:
 
     use_cuda = torch.cuda.is_available()
     config_kwargs = {
+        # Pin the GRPO loss dynamics to TRL 1.7.0's resolved defaults so future
+        # TRL bumps cannot silently change training behavior between ladder
+        # runs. Note these differ from the archive-era TRL that trained the
+        # v0.9B checkpoints (which used a KL penalty and different loss/scaling
+        # defaults) — see the Gate 0 report.
+        "loss_type": "dapo",
+        "scale_rewards": "group",
+        "beta": 0.0,
         "output_dir": str(output_dir),
         "max_steps": args.max_steps,
         "learning_rate": args.learning_rate,
