@@ -89,8 +89,13 @@ controller bug, not a research result.
 ## Standing queue after v0.10 (from AUTORESEARCH_PROGRAM.md §6)
 
 1. v0.11 joint RTW × GACL (only if a v0.10 arm wins).
-2. Throughput: vLLM or batched-generation path for best-of-N (~6 s/example
-   is the experiment-rate bottleneck; a 2× win doubles iteration speed).
+2. Throughput: **batched-generation path is implemented, default-off**
+   (`--hf_gen_mode batched`, ledger row `infra-batchgen`,
+   `docs/THROUGHPUT_BATCHED_BESTOFN_PLAN.md`). Remaining: run
+   `scripts/09_benchmark_generation.py` (equivalence at ≥64 new tokens,
+   distribution, timing at batch 8/16/32) in the first **idle-GPU** window —
+   never alongside a training/eval job. Acceptance: ≥2× at batch 32.
+   Loop mode stays the default for all v0.9/Gate-0-paired comparisons.
 3. Multi-seed + OOD expansion for whatever method is best (frozen protocol).
 4. Paper consolidation: plots/tables from the ledger + candidate banks.
 
