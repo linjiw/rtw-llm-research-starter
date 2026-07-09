@@ -11,7 +11,10 @@ experiment rounds as needed.
 | [NEXT_STEPS.md](NEXT_STEPS.md) | the current concrete plan: what runs now, what decision comes next |
 | [AUTORESEARCH_PROGRAM.md](AUTORESEARCH_PROGRAM.md) | the research operating system: goal, frozen protocol, metric, loop (with advisor checkpoints), prioritized queue |
 | [EXPERIMENT_LEDGER.md](EXPERIMENT_LEDGER.md) | one row per experiment: hypothesis, result, keep/discard, lesson |
-| [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B and the paper-safe claim wording |
+| [STRATEGIC_REPIVOT_20260709.md](STRATEGIC_REPIVOT_20260709.md) | **current direction**: Paper 1 → shaping-vs-capability characterization; Paper 2 → agentic coding; kill list |
+| [BOTTLENECK_DIAGNOSIS_20260709.md](BOTTLENECK_DIAGNOSIS_20260709.md) | 5-lens diagnosis (verified): exact-rate is generation-bound, not selection; reward-shaping can't cross the wall |
+| [PAPER2_MICROCODE_TESTBED_SPEC.md](PAPER2_MICROCODE_TESTBED_SPEC.md) | recommended Paper-2 coding testbed (dense reward variance + live hacking surface) + framework fixes |
+| [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B and the paper-safe claim wording (pre-pivot; see STRATEGIC_REPIVOT for current) |
 
 ## Design docs (stable references)
 
@@ -34,8 +37,10 @@ experiment rounds as needed.
 | v0.6c/d | [V06C_TEACHER_STABILITY.md](V06C_TEACHER_STABILITY.md), [V06D_SEED_EXPANSION_AND_PAPER_PLAN.md](V06D_SEED_EXPANSION_AND_PAPER_PLAN.md) | Stable-RTW (floors/caps/budget) fixes teacher instability |
 | v0.7 | [V07_PROMPT_LENGTH_DIAGNOSTIC_AND_PAPER_PLAN.md](V07_PROMPT_LENGTH_DIAGNOSTIC_AND_PAPER_PLAN.md) | exactness not a prompt-length artifact |
 | v0.8 | [V08_CONDITIONAL_LEGALITY_TO_EXACTNESS_PLAN.md](V08_CONDITIONAL_LEGALITY_TO_EXACTNESS_PLAN.md) | Phased-RTW no better; bottleneck is search/reranking, stop teacher tweaks |
-| v0.9/B | [V09_BEST_OF_N_RERANKING_PLAN.md](V09_BEST_OF_N_RERANKING_PLAN.md) | verifier-guided best-of-N: robust Stable-RTW validation advantage (current main result) |
-| v0.10 | [V10_TASK_CURRICULUM_PLAN.md](V10_TASK_CURRICULUM_PLAN.md) | GACL-style task curriculum — implemented, awaiting GPU (active) |
+| v0.9/B | [V09_BEST_OF_N_RERANKING_PLAN.md](V09_BEST_OF_N_RERANKING_PLAN.md) | verifier-guided best-of-N; Stable-RTW advantage attenuated to non-significant on the TRL 1.7 stack (see Gate 0 3-seed) |
+| v0.10 | [V10_TASK_CURRICULUM_PLAN.md](V10_TASK_CURRICULUM_PLAN.md) | GACL task curriculum — DISCARD (mediator saturated); strike one |
+| v0.12 | [V12_NUMBER_LEGALITY_REWARD_PLAN.md](V12_NUMBER_LEGALITY_REWARD_PLAN.md) | legality-weight envelope — DISCARD, strike two; retired reward-shaping-for-legality |
+| v0.13 | [V13_SFT_WARMUP_LEGALITY_PLAN.md](V13_SFT_WARMUP_LEGALITY_PLAN.md) | SFT warmup (capability lever) — running; strong early signal (both walls moved at train time) |
 
 ## Snapshots (dated, superseded by operating docs)
 
