@@ -16,6 +16,23 @@ from rtw_llm.teacher import RTWTeacher, TeacherConfig
 from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwargs
 
 
+def plan_model_init(init_adapter_path: str | None, use_lora: bool) -> dict:
+    """Decide how the GRPO trainer is initialized (pure, GPU-free — testable).
+
+    Returns a plan dict:
+      mode="continue_adapter": load the pre-trained LoRA and continue it
+        (is_trainable=True); peft_config MUST be None or TRL stacks a second
+        adapter (capacity confound). The v0.13 SFT-warmup path.
+      mode="fresh_lora": attach a new zero-init LoRA (the baseline path).
+      mode="full_finetune": no LoRA at all.
+    """
+    if init_adapter_path is not None:
+        return {"mode": "continue_adapter", "adapter_path": init_adapter_path, "use_peft_config": False}
+    if use_lora:
+        return {"mode": "fresh_lora", "adapter_path": None, "use_peft_config": True}
+    return {"mode": "full_finetune", "adapter_path": None, "use_peft_config": False}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-0.5B-Instruct")
@@ -51,6 +68,17 @@ def main() -> None:
     parser.add_argument("--prompt_field", default="prompt")
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
+    parser.add_argument(
+        "--init_adapter_path",
+        default=None,
+        help=(
+            "Optional path to a pre-trained LoRA adapter (e.g. an SFT warmup) to "
+            "CONTINUE training from. When set, GRPO resumes the given adapter "
+            "(is_trainable=True) instead of attaching a fresh zero-init LoRA — the "
+            "single-variable warmup change for v0.13. Same base model and adapter "
+            "shape as the no-warmup baseline; only the LoRA init differs."
+        ),
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -88,8 +116,26 @@ def main() -> None:
         group_size=args.num_generations,
     )
 
+    # Model + adapter handling (see plan_model_init / docs/V13_..._PLAN.md A1).
+    # Default: base-model string + fresh zero-init LoRA. With --init_adapter_path:
+    # load the pre-trained adapter and CONTINUE it (is_trainable=True), with
+    # peft_config=None so TRL does not stack a second adapter.
+    init_plan = plan_model_init(args.init_adapter_path, args.use_lora)
+    model_arg: object = args.model_name
     peft_config = None
-    if args.use_lora:
+    if init_plan["mode"] == "continue_adapter":
+        from peft import PeftModel
+        from trl.trainer.utils import create_model_from_path
+
+        # Load the base through the SAME helper (and thus same dtype=float32 /
+        # device_map="auto" defaults) TRL uses for the fresh-LoRA baseline, so the
+        # ONLY difference vs C0 is the LoRA init (SFT-warmed vs zero), not the base
+        # load dtype/device_map (v0.13 diff-review F1).
+        base = create_model_from_path(args.model_name, trust_remote_code=True)
+        model_arg = PeftModel.from_pretrained(
+            base, init_plan["adapter_path"], is_trainable=True
+        )
+    elif init_plan["use_peft_config"]:
         peft_config = LoraConfig(
             r=16,
             lora_alpha=32,
@@ -183,7 +229,7 @@ def main() -> None:
         trainer_cls = CurriculumGRPOTrainer
 
     trainer = trainer_cls(
-        model=args.model_name,
+        model=model_arg,
         reward_funcs=reward_manager,
         args=train_args,
         train_dataset=train_ds,

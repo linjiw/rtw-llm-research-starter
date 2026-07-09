@@ -26,13 +26,40 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
+    parser.add_argument(
+        "--completion_only_loss",
+        action="store_true",
+        default=False,
+        help=(
+            "Mask the prompt so loss falls only on the completion (v0.13 A3). Uses "
+            "TRL's native prompt-completion dataset format instead of a formatting "
+            "func, so the small SFT budget teaches expression construction rather "
+            "than prompt reproduction."
+        ),
+    )
     args = parser.parse_args()
 
     ds = load_dataset("json", data_files=args.train_path, split="train")
     eval_ds = load_dataset("json", data_files=args.eval_path, split="train") if args.eval_path else None
 
-    def format_example(example: dict) -> str:
-        return example["prompt"] + "\n" + example["completion"]
+    # The prompt ends at "Now solve the task." and generation begins on a new
+    # line; the original single-string join used "\n". Preserve that seam.
+    formatting_func = None
+    if args.completion_only_loss:
+        # Native prompt-completion format: TRL masks the prompt automatically and
+        # a formatting_func is incompatible. Fold the "\n" join seam into prompt.
+        keep = {"prompt", "completion"}
+        ds = ds.map(lambda x: {"prompt": x["prompt"] + "\n"}).remove_columns(
+            [c for c in ds.column_names if c not in keep]
+        )
+        if eval_ds is not None:
+            eval_ds = eval_ds.map(lambda x: {"prompt": x["prompt"] + "\n"}).remove_columns(
+                [c for c in eval_ds.column_names if c not in keep]
+            )
+    else:
+
+        def formatting_func(example: dict) -> str:
+            return example["prompt"] + "\n" + example["completion"]
 
     peft_config = None
     if args.use_lora:
@@ -62,6 +89,8 @@ def main() -> None:
         "seed": args.seed,
         "trust_remote_code": True,
     }
+    if args.completion_only_loss:
+        config_kwargs["completion_only_loss"] = True
     set_first_supported_kwarg(SFTConfig, config_kwargs, ["max_seq_length", "max_length"], 1024)
     train_args = SFTConfig(**supported_config_kwargs(SFTConfig, config_kwargs))
 
@@ -70,7 +99,7 @@ def main() -> None:
         args=train_args,
         train_dataset=ds,
         eval_dataset=eval_ds,
-        formatting_func=format_example,
+        formatting_func=formatting_func,
         peft_config=peft_config,
     )
     trainer.train()
