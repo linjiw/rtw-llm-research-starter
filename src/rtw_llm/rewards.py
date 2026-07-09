@@ -36,10 +36,20 @@ class RTWRewardManager:
         teacher: RTWTeacher,
         primary_weight: float = 1.0,
         log_path: str | None = None,
+        curriculum: Any = None,
+        group_size: int | None = None,
     ) -> None:
         self.__name__ = "rtw_reward"
         self.teacher = teacher
         self.primary_weight = primary_weight
+        # Observe-only hook: the curriculum controller reads component scores to
+        # steer task sampling; it must never alter rewards or logged components.
+        self.curriculum = curriculum
+        # GRPO forms advantage groups positionally (each prompt's generations
+        # are consecutive), so set group_size=num_generations when used as a
+        # TRL reward function. id-based grouping would merge distinct groups
+        # that happen to share a prompt id within one batch.
+        self.group_size = group_size
         self.log_path = Path(log_path) if log_path else None
         self.batch_index = 0
         if self.log_path:
@@ -87,8 +97,27 @@ class RTWRewardManager:
             rec["reward_batch_size"] = len(rewards)
             rec["reward_batch_reward_std"] = reward_std
             rec["reward_batch_has_variance"] = reward_std > 1e-9
+        # GRPO advantages are computed within a prompt's generation group, so the
+        # per-group std (not the cross-prompt batch std) is the signal that
+        # determines whether a step carries gradient information. Groups are
+        # positional (consecutive slices of group_size), matching TRL's layout.
+        if self.group_size and len(rewards) % self.group_size == 0:
+            group_stds = [
+                _population_std(rewards[i : i + self.group_size])
+                for i in range(0, len(rewards), self.group_size)
+            ]
+            groups_with_variance = sum(1 for s in group_stds if s > 1e-9)
+            for i, rec in enumerate(log_records):
+                std = group_stds[i // self.group_size]
+                rec["group_reward_std"] = std
+                rec["group_has_variance"] = std > 1e-9
+                rec["batch_group_variance_fraction"] = groups_with_variance / len(group_stds)
 
         self.teacher.update(component_records)
+        if self.curriculum is not None:
+            self.curriculum.observe(
+                [(ex.get("difficulty"), comp) for ex, comp in zip(examples, component_records)]
+            )
         self._log(log_records)
         self.batch_index += 1
         return rewards

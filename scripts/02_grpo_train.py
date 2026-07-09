@@ -10,6 +10,7 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
+from rtw_llm.curriculum import CurriculumConfig, CurriculumController, CurriculumSampler
 from rtw_llm.rewards import RTWRewardManager
 from rtw_llm.teacher import RTWTeacher, TeacherConfig
 from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwargs
@@ -34,6 +35,11 @@ def main() -> None:
     parser.add_argument("--max_prompt_length", type=int, default=768)
     parser.add_argument("--max_completion_length", type=int, default=256)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--task_curriculum",
+        choices=["uniform", "manual", "adaptive"],
+        default="uniform",
+    )
     parser.add_argument("--prompt_field", default="prompt")
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
@@ -57,10 +63,21 @@ def main() -> None:
             log_path=str(output_dir / "teacher_weights.jsonl"),
         )
     )
+    curriculum = None
+    if args.task_curriculum != "uniform":
+        curriculum = CurriculumController(
+            CurriculumConfig(
+                mode=args.task_curriculum,
+                log_path=str(output_dir / "curriculum_state.jsonl"),
+            )
+        )
+
     reward_manager = RTWRewardManager(
         teacher=teacher,
         primary_weight=1.0,
         log_path=str(output_dir / "reward_components.jsonl"),
+        curriculum=curriculum,
+        group_size=args.num_generations,
     )
 
     peft_config = None
@@ -100,7 +117,56 @@ def main() -> None:
     )
     train_args = GRPOConfig(**supported_config_kwargs(GRPOConfig, config_kwargs))
 
-    trainer = GRPOTrainer(
+    trainer_cls = GRPOTrainer
+    if curriculum is not None:
+        # The v0.10 cadence identity (1 generation block = 1 controller update
+        # = 1 optimizer step) and the curriculum-state log both assume no batch
+        # reuse and steps_per_generation == grad_accum. Check before loading
+        # the model so misconfiguration fails in seconds, not minutes.
+        if getattr(train_args, "num_iterations", 1) != 1:
+            raise ValueError("task_curriculum requires num_iterations == 1")
+        if train_args.steps_per_generation != train_args.gradient_accumulation_steps:
+            raise ValueError(
+                "task_curriculum requires steps_per_generation == gradient_accumulation_steps"
+            )
+        if train_args.remove_unused_columns:
+            raise ValueError(
+                "task_curriculum requires remove_unused_columns=False: the sampler "
+                "override matches the train dataset by identity"
+            )
+        if train_args.world_size != 1:
+            raise ValueError(
+                "task_curriculum is single-process only: the sampled index stream "
+                "depends on rank-local controller state and would diverge across ranks"
+            )
+        if train_args.eval_strategy != "no":
+            raise ValueError(
+                "task_curriculum requires eval_strategy='no': eval reward batches "
+                "would advance the controller and pollute its competence EMAs"
+            )
+        tier_of_index = list(train_ds["difficulty"])
+
+        class CurriculumGRPOTrainer(GRPOTrainer):
+            def _get_train_sampler(self, dataset=None):
+                if dataset is not None and dataset is not self.train_dataset:
+                    # Fail loud rather than silently degrading the experiment
+                    # arm to uniform RepeatSampler on an unexpected dataset copy.
+                    raise ValueError(
+                        "CurriculumGRPOTrainer received a dataset that is not the "
+                        "train dataset; curriculum sampling would be silently skipped"
+                    )
+                return CurriculumSampler(
+                    tier_of_index=tier_of_index,
+                    controller=curriculum,
+                    mini_repeat_count=self.num_generations,
+                    batch_size=self.args.generation_batch_size // self.num_generations,
+                    repeat_count=self.num_iterations * self.args.steps_per_generation,
+                    seed=self.args.seed,
+                )
+
+        trainer_cls = CurriculumGRPOTrainer
+
+    trainer = trainer_cls(
         model=args.model_name,
         reward_funcs=reward_manager,
         args=train_args,
