@@ -126,3 +126,37 @@ stays within the ~9% ceiling / 3–5-per-50 noise band → **strike two for
 reward-shaping-for-legality → retire that lever, pivot GPU to SFT warmup.**
 Only exact clearly beyond noise (oracle@8 well above 7/50 with a lopsided
 McNemar split) keeps reward shaping alive.
+
+---
+
+# Follow-on CPU probes (2026-07-09, additive scripts 10 & 11)
+
+## Probe A — tier-scoped paired metric (`scripts/10_tier_scoped_paired.py`, `outputs/probe_a_tier_scoped.json`)
+
+Restricting the stable-vs-static comparison to easy-tier **concentrates
+magnitude but does not create signal**. Pooled over 3 seeds × 2 splits at N=8:
+easy-only delta +6.2% (15 stable-only vs 9 static-only discordants, p=0.308)
+vs all-tier +2.3% (17-vs-10, p=0.248) — a 2.7× magnitude boost confirming the
+~2/3 dilution, but easy-scoping's p is slightly *worse* because it discards
+concordant pairs without adding discordants. reranked@8 == oracle@8 in every
+tier×method×seed cell (selection saturation holds at tier resolution); hard
+tier is 0% exact everywhere. **Program-level implication:** at the ~9% exact
+ceiling on 50-task splits, discordant counts are ~24–27 with near-even splits;
+reaching p<0.05 needs a ~19/5 lopsided split. No easy-tier method can clear
+the significance bar on the current protocol — the binding constraint is
+generation-side sparsity, and the honest paper contribution is the
+mechanism/cost characterization, not a significance-backed accuracy win.
+
+## Probe B — generation headroom (`scripts/11_generation_headroom_probe.py`, `outputs/probe_b_generation_headroom.json`)
+
+**NO-GO on any generation-decode GPU run.** Oracle@N is still climbing at N=8
+(23/70 solves arrive at index 4–7) but per-task MLE extrapolation caps
+Oracle@16 at 0.080 and the N→∞ asymptote at 0.087 ≈ empirical Oracle@8 —
+doubling N buys ~+0.015 abs. Clip-recovery upper bound is loose (dominated by
+reasoning runaways, not near-answers; realized gain <0.01). The decisive fact:
+**high text diversity (7.5 distinct strings/task) but near-zero legal
+diversity (0.98 distinct valid expressions/task, 1.13 valid of 8)** — the
+policy explores text, not legal arithmetic, so temperature only adds illegal
+mass. Only training that raises the per-draw legal+exact rate (SFT warmup) can
+move the ceiling. Confirms SFT (v0.13) as the rank-1 bet and rules out decode
+tuning.
