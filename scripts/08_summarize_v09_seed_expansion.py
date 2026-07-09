@@ -161,6 +161,21 @@ def selected_exact_by_task(candidates_path: Path, n: int, selector: str) -> dict
     return out
 
 
+def generation_identity(run: dict[str, Any]) -> dict[str, Any]:
+    """Sampling-identity keys both arms of a paired comparison must share.
+
+    Candidate banks are only comparable within one generation path: batched
+    RNG consumption depends on batch size, so mode and (for batched) batch
+    size are part of the identity. Configs predating hf_gen_mode are loop.
+    """
+    config = run.get("config", {})
+    mode = config.get("hf_gen_mode") or "loop"
+    identity: dict[str, Any] = {"hf_gen_mode": mode}
+    if mode == "batched":
+        identity["batch_size"] = config.get("batch_size")
+    return identity
+
+
 def paired_overlap(runs: list[dict[str, Any]], selector: str = "practical") -> list[dict[str, Any]]:
     by_key = {(run["split"], run["training_seed"], run["method"]): run for run in runs}
     pairs = []
@@ -170,6 +185,12 @@ def paired_overlap(runs: list[dict[str, Any]], selector: str = "practical") -> l
             stable = by_key.get((split, seed, "stable"))
             if not static or not stable:
                 continue
+            if generation_identity(static) != generation_identity(stable):
+                raise ValueError(
+                    f"Generation-identity mismatch for split={split} seed={seed}: "
+                    f"static={generation_identity(static)} stable={generation_identity(stable)}; "
+                    "paired comparisons are only valid within one generation mode/batch size"
+                )
             n_values = sorted(int(n) for n in stable["metrics"]["by_n"])
             for n in n_values:
                 stable_exact = selected_exact_by_task(stable["candidates_path"], n, selector)

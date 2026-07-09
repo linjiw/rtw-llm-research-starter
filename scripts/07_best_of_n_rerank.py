@@ -152,7 +152,34 @@ def select_examples(examples: list[dict[str, Any]], *, limit: int | None, task_i
     return selected
 
 
-def is_complete(output_dir: Path, max_n: int, n_examples: int | None = None) -> bool:
+def sampling_identity(config: dict[str, Any]) -> dict[str, Any]:
+    """Keys that determine the candidate bank; a --skip_if_complete hit must match all.
+
+    In batched mode the RNG is consumed per step across the whole batch, so
+    batch_size is part of the identity; loop mode is chunking-invariant.
+    Artifacts predating the hf_gen_mode flag count as loop-mode.
+    """
+    mode = config.get("hf_gen_mode") or "loop"
+    identity = {
+        "hf_gen_mode": mode,
+        "model_name": config.get("model_name"),
+        "adapter_path": config.get("adapter_path"),
+        "sampling_seed": config.get("sampling_seed"),
+        "temperature": config.get("temperature"),
+        "top_p": config.get("top_p"),
+        "max_new_tokens": config.get("max_new_tokens"),
+    }
+    if mode == "batched":
+        identity["batch_size"] = config.get("batch_size")
+    return identity
+
+
+def is_complete(
+    output_dir: Path,
+    max_n: int,
+    n_examples: int | None = None,
+    requested_identity: dict[str, Any] | None = None,
+) -> bool:
     metrics_path = output_dir / "metrics.json"
     candidates_path = output_dir / "candidates.jsonl"
     summary_path = output_dir / "summary.csv"
@@ -166,6 +193,18 @@ def is_complete(output_dir: Path, max_n: int, n_examples: int | None = None) -> 
         return False
     if n_examples is not None and int(metrics.get("n_examples", -1)) != n_examples:
         return False
+    if requested_identity is not None:
+        config_path = output_dir / "run_config.json"
+        try:
+            stored = json.loads(config_path.read_text()) if config_path.exists() else {}
+        except json.JSONDecodeError:
+            stored = {}
+        if sampling_identity(stored) != requested_identity:
+            raise ValueError(
+                f"{output_dir} holds complete artifacts with a different sampling "
+                f"identity; refusing to skip. stored={sampling_identity(stored)} "
+                f"requested={requested_identity}"
+            )
     expected_candidates = int(metrics.get("n_examples", 0)) * max_n
     actual_candidates = sum(1 for _ in candidates_path.open())
     return actual_candidates == expected_candidates
@@ -179,7 +218,14 @@ def count_completion_tokens(engine: Any, completion: str) -> int:
     return int(len(encoded.get("input_ids", [])))
 
 
-def write_run_config(output_dir: Path, args: argparse.Namespace, n_values: list[int], max_n: int, n_examples: int) -> None:
+def write_run_config(
+    output_dir: Path,
+    args: argparse.Namespace,
+    n_values: list[int],
+    max_n: int,
+    n_examples: int,
+    effective_generation_config: dict[str, Any] | None = None,
+) -> None:
     config = {
         "method": args.method,
         "training_seed": args.training_seed,
@@ -200,6 +246,8 @@ def write_run_config(output_dir: Path, args: argparse.Namespace, n_values: list[
         "prompt_field": args.prompt_field,
         "engine": args.engine,
         "device": args.device,
+        "hf_gen_mode": args.hf_gen_mode,
+        "effective_generation_config": effective_generation_config,
     }
     (output_dir / "run_config.json").write_text(json.dumps(config, indent=2) + "\n")
 
@@ -212,6 +260,17 @@ def main() -> None:
     parser.add_argument("--task_ids_file", default=None)
     parser.add_argument("--output_dir", default="outputs/best_of_n")
     parser.add_argument("--engine", choices=["hf", "vllm"], default="hf")
+    parser.add_argument(
+        "--hf_gen_mode",
+        choices=["loop", "batched"],
+        default="loop",
+        help=(
+            "HF generation path. 'loop' (default) is the archival per-prompt path all "
+            "v0.9/Gate-0 artifacts use; 'batched' is a throughput path with a different "
+            "sampling identity — never mix modes within a paired comparison "
+            "(docs/THROUGHPUT_BATCHED_BESTOFN_PLAN.md)."
+        ),
+    )
     parser.add_argument("--device", choices=["auto", "cuda", "mps", "cpu"], default="auto")
     parser.add_argument("--prompt_field", default="prompt")
     parser.add_argument("--limit", type=int, default=None)
@@ -245,18 +304,37 @@ def main() -> None:
     if max(n_values) > max_n:
         raise ValueError(f"max --n_values {max(n_values)} exceeds --max_n {max_n}")
 
+    if args.engine == "vllm" and args.hf_gen_mode != "loop":
+        raise ValueError("--hf_gen_mode applies to the hf engine only")
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     all_examples = read_jsonl(args.data_path)
     examples = select_examples(all_examples, limit=args.limit, task_ids_file=args.task_ids_file)
-    if args.skip_if_complete and is_complete(output_dir, max_n=max_n, n_examples=len(examples)):
+    requested_identity = sampling_identity(
+        {
+            "hf_gen_mode": args.hf_gen_mode,
+            "model_name": args.model_name,
+            "adapter_path": args.adapter_path,
+            "sampling_seed": args.seed,
+            "temperature": args.temperature,
+            "top_p": args.top_p,
+            "max_new_tokens": args.max_new_tokens,
+            "batch_size": args.batch_size,
+        }
+    )
+    if args.skip_if_complete and is_complete(
+        output_dir, max_n=max_n, n_examples=len(examples), requested_identity=requested_identity
+    ):
         print(json.dumps({"status": "skipped_complete", "output_dir": str(output_dir), "max_n": max_n}, indent=2))
         return
 
     engine = (
         VLLMEngine(args.model_name)
         if args.engine == "vllm"
-        else HFEngine(args.model_name, args.adapter_path, device=args.device)
+        else HFEngine(
+            args.model_name, args.adapter_path, device=args.device, gen_mode=args.hf_gen_mode
+        )
     )
     gen_config = GenerationConfigLite(
         max_new_tokens=args.max_new_tokens,
@@ -310,6 +388,10 @@ def main() -> None:
         wall_clock_seconds=wall_clock_seconds,
         max_n=max_n,
     )
+    effective_gen_config = None
+    if hasattr(engine, "effective_generation_config"):
+        effective_gen_config = engine.effective_generation_config()
+
     report.update(
         {
             "model_name": args.model_name,
@@ -325,6 +407,8 @@ def main() -> None:
             "method": args.method,
             "split": args.split,
             "max_n": max_n,
+            "hf_gen_mode": args.hf_gen_mode,
+            "effective_generation_config": effective_gen_config,
             "wall_clock_seconds": wall_clock_seconds,
             "total_candidates": len(rows),
             "total_tokens_generated": sum(int(row["completion_token_count"]) for row in rows),
@@ -333,7 +417,10 @@ def main() -> None:
 
     write_jsonl(output_dir / "candidates.jsonl", rows)
     (output_dir / "metrics.json").write_text(json.dumps(report, indent=2) + "\n")
-    write_run_config(output_dir, args, n_values, max_n, len(examples))
+    write_run_config(
+        output_dir, args, n_values, max_n, len(examples),
+        effective_generation_config=effective_gen_config,
+    )
 
     flat_rows = []
     for n, result in report["by_n"].items():
