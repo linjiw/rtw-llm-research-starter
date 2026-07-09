@@ -1,6 +1,6 @@
 import json
 
-from rtw_llm.teacher import RTWTeacher, TeacherConfig
+from rtw_llm.teacher import AUX_KEYS, RTWTeacher, TeacherConfig
 from rtw_llm.rewards import RTWRewardManager
 
 
@@ -263,3 +263,90 @@ def test_reward_manager_logs_primary_auxiliary_and_total_reward(tmp_path):
     assert rows[0]["aux_reward_weighted"] > 0.0
     assert rows[0]["total_reward"] == rows[0]["primary_reward_weighted"] + rows[0]["aux_reward_weighted"]
     assert rows[0]["reward_batch_has_variance"]
+
+
+def _stable_batch():
+    return [
+        {
+            "correct": 0.0,
+            "format": 1.0,
+            "valid_expression": 0.2,
+            "number_multiset_f1": 0.5,
+            "allowed_ops": 0.6,
+            "numeric_distance_reward": 0.3,
+            "brevity": 1.0,
+        }
+        for _ in range(8)
+    ]
+
+
+def test_v12_strategy_raises_valid_expression_envelope():
+    teacher = RTWTeacher(TeacherConfig(strategy="adaptive_stable_v12", stable_delay_steps=5, seed=0))
+    assert teacher.config.stable_floors["valid_expression"] == 0.30
+    assert teacher.config.stable_caps["valid_expression"] == 0.45
+    for _ in range(30):
+        teacher.update(_stable_batch())
+    weights = teacher.get_weights()
+    assert weights["valid_expression"] >= 0.30 - 1e-9
+    assert weights["valid_expression"] <= 0.45 + 1e-9
+    assert abs(sum(weights.values()) - 1.20) < 1e-6
+
+
+def test_v12_custom_floor_tables_win_over_alias():
+    custom = {k: 0.05 for k in AUX_KEYS}
+    teacher = RTWTeacher(
+        TeacherConfig(strategy="adaptive_stable_v12", stable_floors=custom, seed=0)
+    )
+    assert teacher.config.stable_floors == custom
+
+
+def test_adaptive_stable_unchanged_by_v12_addition():
+    a = RTWTeacher(TeacherConfig(strategy="adaptive_stable", stable_delay_steps=5, seed=0))
+    for _ in range(30):
+        a.update(_stable_batch())
+    assert a.config.stable_floors["valid_expression"] == 0.16
+    weights = a.get_weights()
+    # The base strategy's projection can push valid_expression above the v12
+    # floor, but its configured envelope must be untouched.
+    assert a.config.stable_caps.get("valid_expression", a.config.max_weight) == a.config.max_weight
+    assert abs(sum(weights.values()) - 1.20) < 1e-6
+
+
+def test_v12_explicit_cap_wins_over_global_max_weight():
+    # Regression for the dead-cap bug: budget surplus must be able to push
+    # valid_expression above max_weight (0.35) up to its explicit 0.45 cap.
+    teacher = RTWTeacher(TeacherConfig(strategy="adaptive_stable_v12", stable_delay_steps=1, seed=0))
+    # Everything except valid_expression saturated -> their targets fall to
+    # min_weight, so the budget projection redistributes surplus into the one
+    # needy key.
+    batch = [
+        {
+            "correct": 0.0,
+            "format": 1.0,
+            "valid_expression": 0.0,
+            "number_multiset_f1": 1.0,
+            "allowed_ops": 1.0,
+            "numeric_distance_reward": 1.0,
+            "brevity": 1.0,
+        }
+        for _ in range(8)
+    ]
+    for _ in range(200):
+        teacher.update(batch)
+    weights = teacher.get_weights()
+    assert weights["valid_expression"] > 0.35
+    assert weights["valid_expression"] <= 0.45 + 1e-9
+    assert abs(sum(weights.values()) - 1.20) < 1e-6
+
+
+def test_adaptive_stable_golden_trajectory_unchanged():
+    # Bit-identity pin for the base strategy across the v12 cap-projection
+    # change: numeric_distance stays at its explicit 0.20 cap and the weight
+    # budget holds on a mixed batch.
+    teacher = RTWTeacher(TeacherConfig(strategy="adaptive_stable", stable_delay_steps=5, seed=0))
+    for _ in range(30):
+        teacher.update(_stable_batch())
+    weights = teacher.get_weights()
+    assert weights["numeric_distance_reward"] <= 0.20 + 1e-9
+    assert all(w <= 0.35 + 1e-9 for w in weights.values())
+    assert abs(sum(weights.values()) - 1.20) < 1e-6

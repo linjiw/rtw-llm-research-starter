@@ -31,7 +31,20 @@ STABLE_CAPS = {
     "numeric_distance_reward": 0.20,
 }
 
-VALID_STRATEGIES = {"adaptive", "adaptive_stable", "adaptive_phased", "static", "manual", "random"}
+# v0.12 legality-weight envelope (docs/V12_NUMBER_LEGALITY_REWARD_PLAN.md):
+# identical to adaptive_stable except valid_expression may carry more mass.
+STABLE_FLOORS_V12 = {**STABLE_FLOORS, "valid_expression": 0.30}
+STABLE_CAPS_V12 = {**STABLE_CAPS, "valid_expression": 0.45}
+
+VALID_STRATEGIES = {
+    "adaptive",
+    "adaptive_stable",
+    "adaptive_stable_v12",
+    "adaptive_phased",
+    "static",
+    "manual",
+    "random",
+}
 
 
 @dataclass
@@ -75,6 +88,14 @@ class RTWTeacher:
         self.config = config or TeacherConfig()
         if self.config.strategy not in VALID_STRATEGIES:
             raise ValueError(f"Unknown strategy: {self.config.strategy}")
+        if self.config.strategy == "adaptive_stable_v12":
+            # Same controller as adaptive_stable; only the valid_expression
+            # weight envelope differs. Ignore only if the caller kept the
+            # dataclass defaults (custom tables win).
+            if self.config.stable_floors == STABLE_FLOORS:
+                self.config.stable_floors = STABLE_FLOORS_V12.copy()
+            if self.config.stable_caps == STABLE_CAPS:
+                self.config.stable_caps = STABLE_CAPS_V12.copy()
         self.step = 0
         self.rng = random.Random(self.config.seed)
         self.ema_primary = 0.0
@@ -129,7 +150,7 @@ class RTWTeacher:
 
         if self.config.strategy == "adaptive":
             self._adaptive_update()
-        elif self.config.strategy == "adaptive_stable":
+        elif self.config.strategy in ("adaptive_stable", "adaptive_stable_v12"):
             raw_weights, floor_hits, cap_hits, delay_active = self._adaptive_stable_update(previous_weights)
         elif self.config.strategy == "adaptive_phased":
             raw_weights, floor_hits, cap_hits, delay_active = self._adaptive_phased_update(previous_weights)
@@ -282,8 +303,12 @@ class RTWTeacher:
             key: max(self.config.min_weight, float(floor_config.get(key, self.config.min_weight)))
             for key in self.config.aux_keys
         }
+        # An explicit per-key cap wins over the global max_weight so a strategy
+        # can widen one component's envelope (v0.12); keys without an explicit
+        # cap keep max_weight. All pre-v12 explicit caps are below max_weight,
+        # so this is bit-identical for adaptive_stable / adaptive_phased.
         projected_caps = {
-            key: min(self.config.max_weight, float(cap_config.get(key, self.config.max_weight)))
+            key: float(cap_config[key]) if key in cap_config else float(self.config.max_weight)
             for key in self.config.aux_keys
         }
         projected_caps = {key: max(projected_caps[key], projected_floors[key]) for key in self.config.aux_keys}
