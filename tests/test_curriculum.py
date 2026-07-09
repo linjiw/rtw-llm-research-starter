@@ -294,3 +294,58 @@ def test_group_variance_is_positional(tmp_path):
 
     assert [r["group_has_variance"] for r in records] == [True, True, False, False]
     assert records[0]["batch_group_variance_fraction"] == pytest.approx(0.5)
+
+
+def test_controller_uses_configured_graded_channel():
+    # framework-bug (a): with a dense graded_key, per-tier competence must
+    # reflect fractional progress, not a binary-derived EMA.
+    controller = CurriculumController(
+        CurriculumConfig(
+            mode="adaptive",
+            delay_updates=0,
+            gate_key="syntax_parses",
+            graded_key="held_out_pass_rate",
+        )
+    )
+    for _ in range(20):
+        controller.observe(
+            [("easy", {"syntax_parses": 1.0, "held_out_pass_rate": 0.6}) for _ in range(4)]
+        )
+    c, phase = controller.competence("easy")
+    assert phase == "exact"
+    assert c == pytest.approx(0.6, abs=0.05)  # graded value, not 0/1
+
+
+def test_reward_manager_custom_scorer_and_fields():
+    # framework-bug (b): the manager must dispatch to a task-agnostic scorer
+    # and forward configured dataset columns instead of Countdown's.
+    from types import SimpleNamespace
+
+    from rtw_llm.rewards import RTWRewardManager
+    from rtw_llm.teacher import RTWTeacher, TeacherConfig
+
+    seen = []
+
+    def fake_scorer(completion, example, aux_weights, primary_weight):
+        seen.append(example)
+        components = {"correct": 1.0, "valid_expression": 1.0}
+        result = SimpleNamespace(expression="f", value=1, correct=True, error=None)
+        return 2.0, components, result
+
+    teacher = RTWTeacher(TeacherConfig(strategy="static", seed=0))
+    manager = RTWRewardManager(
+        teacher=teacher,
+        scorer=fake_scorer,
+        example_fields=("signature", "visible_tests"),
+    )
+    rewards = manager(
+        ["<answer>def f(): pass</answer>"],
+        id=["t1"],
+        difficulty=["easy"],
+        signature=["def f()"],
+        visible_tests=[["assert f() is None"]],
+    )
+    assert rewards == [2.0]
+    assert seen[0]["signature"] == "def f()"
+    assert seen[0]["visible_tests"] == ["assert f() is None"]
+    assert "numbers" not in seen[0]  # Countdown fields not forced on other tasks

@@ -41,6 +41,13 @@ class CurriculumConfig:
     sigma_valid: float = 0.25
     tau_exact: float = 0.175
     sigma_exact: float = 0.15
+    # Task-agnostic channel selection. gate_key is the legality-phase signal;
+    # graded_key is the post-gate competence signal. On a task with a dense
+    # graded reward (e.g. MicroCode held_out_pass_rate) set graded_key to that
+    # channel — a binary-derived EMA re-inherits the task's bimodality and
+    # cannot express partial competence (why v0.10's exact phase was inert).
+    gate_key: str = "valid_expression"
+    graded_key: str = "correct"
     log_path: str | None = None
     tiers: list[str] = field(default_factory=lambda: TIERS.copy())
 
@@ -77,8 +84,8 @@ class CurriculumController:
                 by_tier.setdefault(difficulty, []).append(components)
         for tier, comps in by_tier.items():
             k = len(comps)
-            valid_mean = sum(c.get("valid_expression", 0.0) for c in comps) / k
-            exact_mean = sum(c.get("correct", 0.0) for c in comps) / k
+            valid_mean = sum(c.get(self.config.gate_key, 0.0) for c in comps) / k
+            exact_mean = sum(c.get(self.config.graded_key, 0.0) for c in comps) / k
             # Sample-weighted EMA: beta^k so sparsely observed tiers are not
             # dominated by single-sample noise; first observation initializes.
             beta_eff = self.config.beta**k

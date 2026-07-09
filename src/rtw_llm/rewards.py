@@ -31,6 +31,12 @@ class RTWRewardManager:
     teacher update to rank 0 and broadcast weights.
     """
 
+    #: Dataset columns forwarded from TRL kwargs into each example dict.
+    #: Task-specific scorers may need different columns; override via
+    #: `example_fields`. "id" and "difficulty" are always included (logging
+    #: and curriculum need them).
+    COUNTDOWN_FIELDS = ("numbers", "target", "allowed_ops")
+
     def __init__(
         self,
         teacher: RTWTeacher,
@@ -38,10 +44,21 @@ class RTWRewardManager:
         log_path: str | None = None,
         curriculum: Any = None,
         group_size: int | None = None,
+        scorer: Any = None,
+        example_fields: tuple[str, ...] | None = None,
     ) -> None:
         self.__name__ = "rtw_reward"
         self.teacher = teacher
         self.primary_weight = primary_weight
+        # Task-agnostic scoring contract: scorer(completion, example,
+        # aux_weights=..., primary_weight=...) -> (total, components, result)
+        # where result exposes .expression/.value/.correct/.error (the
+        # VerificationResult contract countdown.py defines and other task
+        # verifiers mirror). Defaults to Countdown.
+        self.scorer = scorer if scorer is not None else score_completion
+        self.example_fields = (
+            tuple(example_fields) if example_fields is not None else self.COUNTDOWN_FIELDS
+        )
         # Observe-only hook: the curriculum controller reads component scores to
         # steer task sampling; it must never alter rewards or logged components.
         self.curriculum = curriculum
@@ -64,7 +81,7 @@ class RTWRewardManager:
 
         for completion_obj, example in zip(completions, examples):
             completion = normalize_completion(completion_obj)
-            total, components, result = score_completion(
+            total, components, result = self.scorer(
                 completion,
                 example,
                 aux_weights=weights,
@@ -127,15 +144,13 @@ class RTWRewardManager:
         n = len(completions)
         examples: list[dict[str, Any]] = []
         for i in range(n):
-            examples.append(
-                {
-                    "id": _get_i(kwargs.get("id"), i),
-                    "difficulty": _get_i(kwargs.get("difficulty"), i),
-                    "numbers": _get_i(kwargs.get("numbers"), i),
-                    "target": _get_i(kwargs.get("target"), i),
-                    "allowed_ops": _get_i(kwargs.get("allowed_ops"), i),
-                }
-            )
+            example = {
+                "id": _get_i(kwargs.get("id"), i),
+                "difficulty": _get_i(kwargs.get("difficulty"), i),
+            }
+            for field in self.example_fields:
+                example[field] = _get_i(kwargs.get(field), i)
+            examples.append(example)
         return self.score_batch(completions, examples)
 
     def _log(self, records: list[dict[str, Any]]) -> None:
