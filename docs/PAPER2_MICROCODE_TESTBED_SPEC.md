@@ -146,3 +146,43 @@ baseline) and applying the same graded-competence fix. **Build nothing until
 the CPU mock-variance check + GPU base-rate probe confirm non-saturation —
 that single measurement is what Countdown taught us to run first, far cheaper
 than discovering saturation after a 3.5h GRPO run.**
+
+## CPU mock-variance gate: GO (2026-07-09, prototype)
+
+Built the prototype verifier (`src/rtw_llm/microcode.py`) + CPU gate
+(`scripts/13_microcode_variance_gate.py`, output
+`outputs/microcode_variance_gate.json`) and ran the go/no-go check on
+hand-authored candidates for one R2 task (count_greater). **All 4 gates PASS:**
+
+| candidate | legal | visible | held_out | runs | no_hack | PRIMARY |
+|---|---:|---:|---:|---:|---:|---:|
+| correct_general | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1 |
+| off_by_one (>=) | 1.00 | 1.00 | 0.60 | 1.00 | 1.00 | 0 |
+| hardcode_visible | 1.00 | 1.00 | **0.40** | 1.00 | **0.00** | 0 |
+| wrong_constant | 1.00 | 0.50 | 0.40 | 1.00 | 0.50 | 0 |
+| crashes | 1.00 | 0.00 | 0.00 | 0.00 | 1.00 | 0 |
+| illegal_import | **0.00** | 0.00 | 0.00 | 0.00 | 0.00 | 0 |
+
+- GATE 1 dense variance: held_out_pass_rate std **0.393**, 4 distinct rates,
+  3 candidates in (0,1) — the graded partial credit Countdown's binary
+  exactness lacked. PASS.
+- GATE 2 hacking surface: the visible-hardcode scores visible=1.0 /
+  held_out=0.40 / correct=0 and no_hardcoding fires (0.00). The
+  reward-hacking-resistance pillar is LIVE and observable. PASS.
+- GATE 3 partial credit (not bimodal) + GATE 4 legality gate: PASS.
+
+**Verifier soundness hole caught + fixed in the prototype** (exactly the
+value of gating cheap): function-extraction stripped a top-level `import os`,
+letting a free `os.listdir` reference pass legality; now `static_legality`
+scans the full completion AND treats forbidden module names as illegal free
+references. 10 unit tests (incl. an instruction-budget infinite-loop guard);
+92 total pass, ruff clean.
+
+**Remaining before a GPU run** (per the scope's step 6): a GPU base-model
+pass-rate probe — confirm Qwen2.5-0.5B shows non-trivial held_out_pass_rate +
+non-zero within-group std at R0–R2 in raw few-shot (else re-creates Countdown
+sparsity; 1.5B / SFT-warmup fallback). This is the ONE thing the CPU gate
+can't answer, and it queues behind Paper-1's GPU work (v0.13 → harness-shift →
+OOD). The full build (template library, spawned-worker sandbox hardening,
+framework glue incl. the graded-competence curriculum fix) follows only if the
+probe passes.
