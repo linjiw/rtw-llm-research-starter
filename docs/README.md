@@ -8,6 +8,7 @@ experiment rounds as needed.
 
 | doc | role |
 |---|---|
+| [RESEARCH_GOAL_AND_PLANS_20260709.md](RESEARCH_GOAL_AND_PLANS_20260709.md) | consolidated goal + design/implementation/experiment/validation plans (post-v0.13) |
 | [NEXT_STEPS.md](NEXT_STEPS.md) | the current concrete plan: what runs now, what decision comes next |
 | [AUTORESEARCH_PROGRAM.md](AUTORESEARCH_PROGRAM.md) | the research operating system: goal, frozen protocol, metric, loop (with advisor checkpoints), prioritized queue |
 | [EXPERIMENT_LEDGER.md](EXPERIMENT_LEDGER.md) | one row per experiment: hypothesis, result, keep/discard, lesson |
