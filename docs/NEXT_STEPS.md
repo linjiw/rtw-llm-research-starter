@@ -1,8 +1,27 @@
 # Next Steps
 
-Updated: 2026-07-09 (~18:45 UTC, after the 5-lens bottleneck diagnosis). This
-is the concrete execution plan; the governing protocol is
+Updated: 2026-07-09 (~21:40 UTC, after the strategic re-pivot + Paper-2 scope).
+This is the concrete execution plan; the governing protocol is
 `AUTORESEARCH_PROGRAM.md`, results land in `EXPERIMENT_LEDGER.md`.
+
+## Program direction (from `STRATEGIC_REPIVOT_20260709.md`)
+
+The 3-pillar adaptivity thesis is NOT recoverable on Countdown-at-0.5B (2 of 3
+pillars structurally inert). **Paper 1 pivots to a shaping-vs-capability
+CHARACTERIZATION** (the bottleneck diagnosis IS the contribution), carrying the
+cost result (0.58× tokens, confirmed to exceed cross-seed noise 2.7–3.3×) and
+robustness (harness-shift/OOD) as honestly-scoped secondaries. **Paper 2 = the
+same adaptive teacher on agentic CODING** (`PAPER2_MICROCODE_TESTBED_SPEC.md`)
+is the north-star bet — it supplies the dense reward variance + live hacking
+surface Countdown lacks. GPU is spent ONLY on ranks 1–3 below; ranks 4–5 are
+CPU-forward. Kill list (protect budget): adversarial-init, more
+reward/curriculum-shaping-for-legality, harder-Countdown, grammar-decoding-as-
+pillar, prompt_low robustness arm, 1.5B sweep this cycle.
+
+Two must-fix FRAMEWORK bugs found (ledger `framework-bug`): (a)
+`CurriculumController.competence()` climbs on binary exact post-legality (part
+of why v0.10 was inert) — fix to read a graded channel; (b)
+`RTWRewardManager.__call__` is Countdown-coupled — generalize for Paper 2.
 
 ## Program reframing (from `BOTTLENECK_DIAGNOSIS_20260709.md`, all 5 lenses verified solid)
 
