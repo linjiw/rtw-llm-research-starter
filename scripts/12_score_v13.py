@@ -40,18 +40,27 @@ def load_bank(bank_dir: Path, n: int) -> dict[str, list[dict[str, Any]]]:
     return dict(out)
 
 
-def overlap_task_ids(bank: dict[str, list[dict]], train_path: Path) -> set[str]:
-    train_keys = set()
+def overlap_task_ids(
+    bank: dict[str, list[dict]], train_path: Path
+) -> tuple[set[str], dict[str, set[str]]]:
+    """Return overlap task ids and, per overlap task, the gold solutions
+    (whitespace-normalized) from every train row sharing its (numbers, target).
+    Verbatim-gold exact candidates on overlap tasks indicate memorization; a
+    different exact expression on the same task is genuine search."""
+    train_solutions: dict[tuple, set[str]] = defaultdict(set)
     with train_path.open() as handle:
         for line in handle:
             row = json.loads(line)
-            train_keys.add((tuple(sorted(row["numbers"])), row["target"]))
+            key = (tuple(sorted(row["numbers"])), row["target"])
+            train_solutions[key].add(row["solution"].replace(" ", ""))
     hits = set()
+    gold_by_task: dict[str, set[str]] = {}
     for task_id, rows in bank.items():
         key = (tuple(sorted(rows[0]["numbers"])), rows[0]["target"])
-        if key in train_keys:
+        if key in train_solutions:
             hits.add(task_id)
-    return hits
+            gold_by_task[task_id] = train_solutions[key]
+    return hits, gold_by_task
 
 
 def is_legal(cand: dict) -> bool:
@@ -158,15 +167,35 @@ def group_variance_fraction(run_dir: Path) -> float | None:
     return n / tot if tot else None
 
 
+def verbatim_gold_split(
+    bank: dict[str, list[dict]], overlap: set[str], gold_by_task: dict[str, set[str]], n: int
+) -> dict[str, int]:
+    """Among exact candidates on overlap tasks: verbatim gold vs novel."""
+    verbatim = novel = 0
+    for task_id in overlap:
+        gold = gold_by_task.get(task_id, set())
+        for cand in bank[task_id][:n]:
+            if not is_exact(cand):
+                continue
+            expr = (cand["metrics"].get("expression") or "").replace(" ", "")
+            if expr in gold:
+                verbatim += 1
+            else:
+                novel += 1
+    return {"verbatim_gold_exact_candidates": verbatim, "novel_exact_candidates": novel}
+
+
 def score_arm(
     name: str,
     bank: dict[str, list[dict]],
     baselines: dict[str, dict[str, list[dict]]],
     overlap: set[str],
+    gold_by_task: dict[str, set[str]],
     n: int,
 ) -> dict[str, Any]:
     held_out = set(bank) - overlap
     result: dict[str, Any] = {"arm": name, "n_tasks": len(bank), "n_overlap_tasks": len(overlap)}
+    result["overlap_exact_split"] = verbatim_gold_split(bank, overlap, gold_by_task, n)
 
     # Primary surfaces, partitioned. Baseline pooled counts for the p-value.
     for scope, ids in (("all", None), ("held_out", held_out), ("overlap", overlap)):
@@ -235,7 +264,7 @@ def main() -> None:
 
     baselines = {Path(d).name: load_bank(Path(d), args.n) for d in args.baseline_dirs}
     reference = next(iter(baselines.values()))
-    overlap = overlap_task_ids(reference, Path(args.train_path))
+    overlap, gold_by_task = overlap_task_ids(reference, Path(args.train_path))
 
     report: dict[str, Any] = {
         "n": args.n,
@@ -246,7 +275,7 @@ def main() -> None:
     for spec in args.arms:
         name, _, bank_dir = spec.partition("=")
         bank = load_bank(Path(bank_dir), args.n)
-        report["arms"].append(score_arm(name, bank, baselines, overlap, args.n))
+        report["arms"].append(score_arm(name, bank, baselines, overlap, gold_by_task, args.n))
 
     if args.grpo_run_dir:
         report["arm_group_variance_fraction"] = group_variance_fraction(Path(args.grpo_run_dir))
@@ -277,6 +306,11 @@ def main() -> None:
             f"  oracle@{args.n}={arm['oracle_exact_at_n']:.3f} rerank@{args.n}={arm['reranked_exact_at_n']:.3f} "
             f"(held-out {arm['held_out_oracle_exact']:.3f}, overlap {arm['overlap_oracle_exact']:.3f}) "
             f"selection_saturated={arm['selection_saturated']}"
+        )
+        ov = arm["overlap_exact_split"]
+        print(
+            f"  overlap exact candidates: {ov['verbatim_gold_exact_candidates']} verbatim-gold, "
+            f"{ov['novel_exact_candidates']} novel"
         )
         for seed_name, mc in arm["mcnemar_vs_baseline_seeds"].items():
             print(f"  vs {seed_name}: all={mc['all']} held_out={mc['held_out']}")
