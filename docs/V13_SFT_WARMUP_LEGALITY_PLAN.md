@@ -161,3 +161,29 @@ per A2/Probe A: ~17 easy val tasks ⇒ ~2–3 discordants even on full success).
 id `v0.13-sft`, hypothesis above, verdict per rule. Either way this is a
 high-information result: it tests whether the legality wall is the binding
 constraint or a symptom of a deeper search-capability floor.
+
+## Scoring control: memorization overlap (added mid-run 2026-07-09)
+
+Early GRPO signal is strong — v13's first-300 training completions: parseable
+0.94 (C0 cold 0.43), valid 0.58 (C0 0.01), train-time exact 0.12 (C0 0.00).
+The SFT warmup moved BOTH walls at train time. But SFT trained on all 2000
+gold solutions, and eval tasks overlap training by (numbers, target):
+
+- **No task-ID overlap** (clean id split), but frozen-50 (numbers,target)
+  overlap with train: **validation 9/50 (all easy), test_in_dist 6/50
+  (5 easy, 1 medium).**
+
+So a v13 eval gain concentrated on those 9/6 tasks is MEMORIZATION, not
+capability transfer. **Scoring MUST partition the paired comparison:**
+1. Overlap tasks (9 val / 6 test): expected to improve, but discount as
+   memorization — report separately, do not credit to the method.
+2. Held-out tasks (41 val / 44 test): a gain HERE is genuine
+   legality/search-capability transfer — this is the real result.
+3. The SFT-only arm on overlap tasks bounds pure memorization (no GRPO).
+
+If the gain is only on overlap tasks → v13 is a memorization artifact, DISCARD
+for the capability claim (though it still validates the SFT→GRPO machinery).
+If held-out tasks improve → the legality/search wall genuinely moved, KEEP.
+Given exact is easy-tier-only and 9 of ~17 easy val tasks are overlap, the
+held-out easy pool is small (~8) — lean on candidate-level legality
+(well-powered, A2) on held-out tasks as the primary evidence.
