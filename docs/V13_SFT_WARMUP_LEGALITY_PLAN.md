@@ -211,3 +211,82 @@ Key reads (train-time; eval is the real test):
   training data and eval tasks (9/50 val, 6/50 test). The load-bearing test is
   best-of-N on HELD-OUT frozen tasks (pending) — partition per the memorization
   control above. A held-out gain = genuine transfer; overlap-only = memorization.
+
+## RESULTS (2026-07-09, seed 0; scored by `scripts/12_score_v13.py`)
+
+Scoring artifacts: `outputs/v13_score_validation.json` (+ test_in_dist when
+complete). Protocol integrity verified: loop mode, sampling seed 0, frozen
+IDs, identical generation config to the stable 3-seed baseline banks.
+
+### Validation (vs stable 3-seed baseline distribution)
+
+**Primary surfaces (A2):**
+
+| surface | v13 SFT+GRPO | v13 SFT-only | stable 3-seed |
+|---|---:|---:|---:|
+| easy candidate legality (all) | **1.000** (136/136) | 0.640 | 0.213–0.228, pooled 0.223 |
+| easy candidate legality (held-out tasks) | **1.000** (64/64) | 0.625 | 0.224 |
+| P(exact\|legal), all tiers | **0.235** (77/328) | 0.150 | 0.077–0.135 |
+
+Both primaries moved, on held-out tasks, far beyond the baseline seed spread
+(two-proportion p≈0 for legality; P(exact|legal) nearly doubles the best
+baseline seed). **This is the first lever to move BOTH walls** — v0.10/v0.12
+moved neither at eval (v12 moved legality only, 0.13→0.19; v13 hits 1.00).
+
+**Directional/confirmatory:** oracle@8 = rerank@8 = **0.440** vs stable
+0.10±0.02 (~4.9× the ~9% ceiling the diagnosis measured). Held-out-task
+oracle@8 = 0.317; overlap-task = 1.000. McNemar vs every stable seed:
+arm-only 16–18 vs base-only 0 (held-out-only: 11–12 vs 0) — lopsided beyond
+anything previously observed in this program.
+
+**Per-tier decomposition (the wall picture moved):**
+
+| tier | legality v13 / C0 | P(exact|legal) v13 / C0 | oracle@8 v13 / C0 |
+|---|---:|---:|---:|
+| easy | 1.00 / 0.23 | 0.50 / 0.23 | 16/17 / 6/17 |
+| medium | 0.87 / 0.14 | 0.05 / 0.00 | 3/15 / 0/15 |
+| hard | 0.61 / 0.03 | 0.05 / 0.00 | 3/18 / 0/18 |
+
+Medium and hard produce their FIRST-EVER exact solves in this program — and
+every medium/hard exact expression was checked against all 2000 SFT gold
+solutions: **all novel, zero verbatim, all on non-overlap tasks** (e.g.
+`(16-(12+(12-4)-7))` on a held-out hard task). The "hard is a 0.5B capability
+floor" claim from the diagnosis is now scoped: it was a floor for
+*RL-from-base*; SFT+GRPO moves it slightly (3/18), though hard remains
+search-limited (P(exact|legal)=0.05).
+
+**Memorization control:** overlap-task exact candidates split 9 verbatim-gold
+vs 29 novel; held-out easy legality (1.00) equals overlap legality — the
+legality gain is format/assembly capability, not recitation. Verbatim
+recitation exists but is a minority channel even on overlap tasks.
+
+**SFT-only vs SFT+GRPO decomposition (A6):** SFT-only reaches 0.640 easy
+legality / 0.220 oracle@8; GRPO on top adds +0.36 legality and +11 oracle
+tasks net (12 added — 6 easy, 3 medium, 3 hard — 1 hard lost). Both stages
+contribute; GRPO is NOT inert (group-variance 0.89 vs C0 0.97) and NOT
+redundant. The two-stage story (SFT teaches the syntax of legality, GRPO
+consolidates and extends the search) holds.
+
+**Guardrails:**
+- Diversity (A5, top pre-registered risk): distinct legal expr/task easy =
+  **3.76** vs baseline 1.47–1.65 — diversity ROSE ~2.4×; no collapse.
+- Cost: 55 tok/cand (stable ~64–68), clip rate 0.000 (stable ~0.16). Cheaper
+  AND never truncated.
+- Selection saturation persists (rerank@8 == oracle@8): consistent with the
+  diagnosis; the selector remains lossless on the new distribution.
+
+### Verdict (validation; test_in_dist pending)
+
+**KEEP — decisively.** Every pre-registered KEEP condition is met with
+margin; every pre-registered failure mode (diversity collapse, legality-only,
+GRPO-inert, memorization-only) is affirmatively ruled out by its guardrail.
+
+### test_in_dist (vs stable 3-seed baseline distribution)
+
+Replicates and exceeds validation: easy legality **1.000** (120/120; held-out
+80/80) vs pooled 0.219; P(exact|legal) **0.257** vs 0.101–0.160;
+oracle@8 = rerank@8 = **0.500** (held-out-task 0.432, overlap 1.000);
+McNemar arm-only 18–23 vs base-only 0–2 against every stable seed (even this
+underpowered surface clears p<1e-4 at 18-vs-0); diversity 4.00 distinct legal
+expr/task vs 1.33–1.73; cost 54 tok/cand, clip 0.000; verbatim-gold 5 vs
+novel 27 on overlap tasks. Both splits agree: **KEEP.**

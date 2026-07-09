@@ -1,8 +1,42 @@
 # Next Steps
 
-Updated: 2026-07-09 (~21:40 UTC, after the strategic re-pivot + Paper-2 scope).
-This is the concrete execution plan; the governing protocol is
-`AUTORESEARCH_PROGRAM.md`, results land in `EXPERIMENT_LEDGER.md`.
+Updated: 2026-07-09 (~23:50 UTC, after the v0.13 verdict). This is the
+concrete execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`,
+results land in `EXPERIMENT_LEDGER.md`.
+
+## HEADLINE: v0.13 SFT-warmup → KEEP, decisively (ledger `v0.13-sft`)
+
+Both splits, seed 0, frozen protocol, scored by the pre-registered
+`scripts/12_score_v13.py`: easy candidate legality 0.22 → **1.00** (incl.
+held-out-task subsets), P(exact|legal) 0.14 → **0.24–0.26**, oracle@8 = 
+rerank@8 = **0.44/0.50** vs stable ~0.10 (≈5× the measured ~9% ceiling),
+McNemar arm-only 16–23 vs base-only 0–2 against every stable seed, first-ever
+medium/hard exacts (all novel expressions, zero verbatim-gold, non-overlap
+tasks). Guardrails all green: diversity ROSE 2.4×, cost DOWN, clip 0.000,
+GRPO not inert (+11 net oracle tasks over SFT-only), memorization bounded.
+
+**Program implication:** the generation wall is a trainable-DATA gap, not a
+0.5B architecture floor. Two reward-shaping strikes couldn't move what one
+epoch of 2000 gold completions + GRPO moved 5×. This is the
+shaping-vs-capability characterization's positive arm, with pre-registered
+guardrails. "Hard = capability floor" is re-scoped to RL-from-base.
+
+### v0.13 follow-up queue (in order)
+
+1. **Score the SFT-only test arm** when its bank lands (~20 min) — completes
+   the decomposition table; expect ~0.2 oracle@8.
+2. **v0.13 seeds 1/2** (~2×4.5 h GPU): the KEEP is seed-0; the program's own
+   standard (G0-seeds12 lesson) requires the 3-seed distribution before any
+   paper number. Same runner with SFT seed + GRPO teacher seed varied.
+3. **OOD evaluation** of the v13 checkpoint on the frozen OOD IDs
+   (`test_ood_long`, `test_ood_division` with the len-filters) vs stable —
+   does the legality capability transfer out of distribution, or did SFT
+   overfit the 3–5-number/4-op envelope? Cheap (~2 banks, eval-only) and
+   load-bearing for the "capability lever" claim.
+4. **Paper integration**: the characterization paper now has its contrast —
+   shaping (2 strikes, walls unmoved) vs capability (SFT, both walls moved
+   5×) with identical protocol/guardrails. Update
+   `CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` after seeds 1/2.
 
 ## Program direction (from `STRATEGIC_REPIVOT_20260709.md`)
 
