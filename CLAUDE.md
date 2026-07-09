@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RTW-LLM is a research project studying **adaptive auxiliary reward weighting (Reward Training Wheels, RTW) and adaptive curricula (GACL)** for harness-aware LLM post-training. The current testbed is a Countdown-style arithmetic task with a strict verifier; the long-term target is agentic coding tasks. The deliverable is a paper, not a product — experimental hygiene (frozen task IDs, paired comparisons, separate reward-component logging) matters more than code elegance.
 
-Read these before planning any experiment:
-- `docs/CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` — current empirical arc (v0.6b→v0.9B) and the paper-safe claim wording
-- `docs/BASELINE_INVENTORY_AND_NEXT_EXPERIMENTS_20260708.md` — what baselines exist, what's missing locally, next experiment gate
+Read these before planning any experiment (`docs/README.md` is the full index):
+- `docs/NEXT_STEPS.md` — the current concrete execution plan
+- `docs/AUTORESEARCH_PROGRAM.md` — research operating system: goal, frozen metric/protocol, iteration loop with advisor checkpoints, prioritized queue
+- `docs/EXPERIMENT_LEDGER.md` — one row per experiment: hypothesis, result, keep/discard, lesson
+- `docs/CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` — empirical arc (v0.6b→v0.9B) and the paper-safe claim wording
 - `docs/PROJECT_DESIGN.md` — research questions, roadmap, failure modes
 - `AGENTS.md` — repo invariants (summarized below)
 
