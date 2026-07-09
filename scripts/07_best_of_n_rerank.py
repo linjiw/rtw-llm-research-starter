@@ -168,6 +168,11 @@ def sampling_identity(config: dict[str, Any]) -> dict[str, Any]:
         "temperature": config.get("temperature"),
         "top_p": config.get("top_p"),
         "max_new_tokens": config.get("max_new_tokens"),
+        # The prompt field is part of the candidate-bank identity: the
+        # harness-shift experiment reuses one checkpoint across prompt_high /
+        # prompt_mid, so --skip_if_complete must NOT skip across fields.
+        # Legacy artifacts without the key are 'prompt' (== prompt_high here).
+        "prompt_field": config.get("prompt_field") or "prompt",
     }
     if mode == "batched":
         identity["batch_size"] = config.get("batch_size")
@@ -321,6 +326,7 @@ def main() -> None:
             "top_p": args.top_p,
             "max_new_tokens": args.max_new_tokens,
             "batch_size": args.batch_size,
+            "prompt_field": args.prompt_field,
         }
     )
     if args.skip_if_complete and is_complete(

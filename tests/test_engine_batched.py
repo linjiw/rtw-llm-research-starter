@@ -148,6 +148,23 @@ def test_loop_identity_ignores_batch_size(tmp_path):
     assert mod.is_complete(tmp_path, max_n=8, n_examples=1, requested_identity=requested)
 
 
+def test_is_complete_refuses_prompt_field_mismatch(tmp_path):
+    # Harness-shift: reusing a prompt_high bank for a prompt_mid request must NOT skip.
+    mod = bestofn()
+    make_complete_artifacts(tmp_path, {**BASE_CONFIG, "prompt_field": "prompt_high"})
+    requested = mod.sampling_identity({**BASE_CONFIG, "prompt_field": "prompt_mid"})
+    with pytest.raises(ValueError, match="sampling identity"):
+        mod.is_complete(tmp_path, max_n=8, n_examples=1, requested_identity=requested)
+
+
+def test_legacy_config_without_prompt_field_counts_as_prompt(tmp_path):
+    mod = bestofn()
+    legacy = {k: v for k, v in BASE_CONFIG.items() if k != "prompt_field"}
+    make_complete_artifacts(tmp_path, legacy)
+    requested = mod.sampling_identity({**BASE_CONFIG, "prompt_field": "prompt"})
+    assert mod.is_complete(tmp_path, max_n=8, n_examples=1, requested_identity=requested)
+
+
 def test_legacy_config_without_gen_mode_counts_as_loop(tmp_path):
     mod = bestofn()
     legacy = {k: v for k, v in BASE_CONFIG.items() if k != "hf_gen_mode"}
