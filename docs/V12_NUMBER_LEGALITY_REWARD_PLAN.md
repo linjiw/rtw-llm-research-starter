@@ -102,3 +102,53 @@ Ledger row `v0.12-legality`. KEEP → seeds 1/2 + consider stacking truncation
 shaping next. DISCARD → second strike on "teacher-side reward shaping for
 legality" → move to truncation/close-tag shaping (the other audit lever) or
 the throughput/mechanism queue.
+
+## Results (v0.12 pilot, seed 0, 2026-07-09) — DISCARD, strike two
+
+Pilot completed clean (smoke gate passed, envelope [0.30,0.45] held, budget
+1.20; 300-step healthy). Scored against C0 = `grpo_stable_seed0_300` on frozen
+IDs, both splits. **The pre-registered prediction held: legality up, exact
+flat.**
+
+### Candidate-level (the well-powered surface)
+
+| metric | split | C0 | v12 |
+|---|---|---:|---:|
+| legal-candidate rate | validation | 0.130 | **0.193** |
+| legal-candidate rate | test_in_dist | 0.145 | **0.177** |
+| P(exact \| legal) | validation | 0.135 | 0.130 |
+| P(exact \| legal) | test_in_dist | 0.138 | 0.211 |
+| mean tokens/cand | validation | 64 | **37** |
+| 256-clip rate | validation | 0.16 | **0.07** |
+
+The envelope widening **did** raise legal-candidate formation (+48% relative
+on validation) and, notably, **halved the clip rate and cut tokens ~40%** —
+more valid_expression weight suppressed rambling. But **P(exact|legal) stayed
+flat** (val 0.135→0.130): the extra legal candidates did not convert to exact.
+
+### Decisive metric (oracle_exact@8 / paired rerank@8 vs C0)
+
+- validation: 6 vs 6 (paired 4-vs-4, p=1.0) — dead flat.
+- test_in_dist: 8 vs 2 looks like p=0.031, BUT **C0-seed0 (2/50) is a low
+  outlier** — stable across 3 seeds is 2/6/8 (mean 5.3). v12's 8 is z=+1.1,
+  inside stable's own seed range (seed2 also = 8). So exact is **within
+  noise**, not a v12 gain. (This is exactly the single-seed McNemar trap the
+  diagnosis/Probe A warned about.)
+- selection still saturated (reranked@8 == oracle@8) on both splits — any
+  gain would have to come from generation, and it didn't.
+
+### Verdict: DISCARD → strike two for reward-shaping-for-legality
+
+Two consecutive reward-shaping attempts (v0.10 curriculum via mediator, v0.12
+legality envelope) moved their intended intermediate quantity but not exact.
+This is the diagnosis's central prediction: exact = legality ×
+P(exact|legal≈0.14), and reward reweighting touches legality (and here,
+usefully, cost) but not the value-search wall. **Retire the reward-shaping-for-
+legality theme** (two-strike rule) and pivot GPU to v0.13 SFT warmup (a
+capability/data lever). One genuine keeper: the `adaptive_stable_v12` envelope
+is a strong *cost* reducer (−40% tokens, half the clipping) at equal exactness
+— worth noting for the efficiency story, not the accuracy story.
+
+Overclaims to avoid: "v12 improves OOD exactness" (the test signal is a C0
+outlier artifact); "legality shaping fails" (it succeeded at legality and cost
+— it just doesn't convert to exact, which is a different, informative result).

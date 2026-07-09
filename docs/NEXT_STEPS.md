@@ -26,48 +26,42 @@ The exact-solution gap is a **generation** problem, not a selection problem:
 
 ## Where we are right now
 
-- **v0.12 legality-envelope pilot TRAINING** (~74% at 18:40 UTC; ledger
-  `v0.12-legality` pending). Pre-registered prediction (diagnosis): it moves
-  legality but not exact. See Step 1 scoring rule.
-- **Gate 0 complete at 3 seeds**, **v0.10 C2 DISCARD**, **infra-batchgen KEEP
-  as tooling** — all recorded in the ledger.
+- **v0.12 legality-envelope: DISCARD → STRIKE TWO** (ledger `v0.12-legality`,
+  results in `V12_...PLAN.md`). Legality rose as designed (val 0.13→0.19)
+  and P(exact|legal) stayed flat (0.135→0.130); exact@8 within noise (val
+  6-vs-6 p=1.0; the test 8-vs-2 p=0.031 is a C0-seed0 low-outlier artifact —
+  stable 3-seed test = 2/6/8, v12's 8 is z=+1.1 inside range). **Exactly the
+  diagnosis prediction: reward shaping moves assembly, not the value-search
+  wall.** Retire reward-shaping-for-legality. One keeper: v12 halved clip
+  rate (0.16→0.07) and cut tokens ~40% — an efficiency finding.
+- **v0.13 SFT→GRPO code path built, advisor-reviewed, merged** (commit
+  `6339354`): `02_grpo_train.py --init_adapter_path` continues an SFT LoRA;
+  `01_sft_warmup.py --completion_only_loss`; verified end-to-end on CPU;
+  80+4 tests pass. Launch is unblocked (v12 strike-two gate cleared).
+- **Gate 0 3 seeds**, **v0.10 C2 DISCARD**, **infra-batchgen KEEP as
+  tooling** — recorded.
 
-## Step 1 — Score v0.12 when the pilot finishes (pre-registered rule)
-
-Build a best-of-N bank on FROZEN task IDs first (v12 has none), method name
-`v12legality` (do NOT let script 08's name-inference glob it as `stable`).
-Then check in order:
-1. Legal-candidate rate — does it rise clearly above the static/stable
-   13–19% band?
-2. P(exact | legal) — if legality rose but this stayed ~0.14–0.18, shaping
-   helped assembly, not search (the expected outcome).
-3. **Decisive:** oracle_exact@8 and paired McNemar rerank@8 vs stable C0 on
-   frozen IDs. Signal requires discordants > ~10 with a lopsided split;
-   3–5/50 is noise (Gate 0 p=0.34).
-4. Per-tier: expect medium legality↑ / medium exact flat; hard exact ~0.
-5. Confirm selection still saturated (reranked@8 == oracle@8) so any gain is
-   attributed to generation.
-
-**DECISION:** legality↑ + exact within noise ⇒ **strike TWO for
-reward-shaping-for-legality ⇒ retire that lever, pivot GPU to Step 2 (SFT
-warmup).** Exact clearly beyond noise ⇒ legality WAS the binding constraint,
-reward shaping stays alive.
-
-## Step 2 — SFT warmup on verifier-generated legal solutions (top next GPU bet)
+## Step 1 — Launch v0.13 SFT warmup (top GPU bet; UNBLOCKED, GPU idle)
 
 Rank-1 experiment from the diagnosis. **Data/capability lever — does NOT
-consume the reward-shaping strike.** Attacks the legality wall directly:
-generate verifier-checked legal, use-all-required expressions (easy+medium)
-via the existing generator, SFT warmup (script 01), THEN standard Stable-RTW
-GRPO, then best-of-N on frozen IDs.
-- Predicted: if SFT ~doubles easy legality (22%→~40%) at unchanged
-  P(exact|legal)≈0.18, easy oracle@8 ~25%→~35–40%, pooled oracle_exact@8
-  ~9%→~12–15% (concentrated on easy). Gains bounded by exact = legality ×
-  P(exact|legal).
-- Risk: may cut sampling diversity or teach legality without search
-  (v10c2/v12 pattern) — measure legality AND P(exact|legal) separately.
-- Cost ~4–5 h GPU. Design doc → advisor review → diff review → GPU
-  (program §5), one variable.
+consume the reward-shaping strike** (that theme is now retired anyway). Plan:
+`docs/V13_SFT_WARMUP_LEGALITY_PLAN.md` (advisor-amended A1–A7, diff-reviewed).
+- SFT data already exists: 2000 train completions, all verifier-exact.
+- Sequence: SFT (light: ≤100 steps, lr ≤5e-5, `--completion_only_loss`, all
+  tiers) → GRPO stable `--init_adapter_path <sft>` (seed42 as C0, same budget)
+  → best-of-N on frozen IDs + SFT-only eval arm.
+- **Primary metric (A2, well-powered):** candidate-level easy-tier legality
+  rate (n≈136) + P(exact|legal). oracle@8/McNemar are directional only —
+  score against the stable 3-SEED distribution (val 4-6, test 2-8), never a
+  single C0 seed (the v12 test artifact is the cautionary tale).
+- Guardrails (A5): distinct-legal-expr@8 vs C0 (Probe B: already ~0.98/task —
+  diversity collapse is the top risk); cost; GRPO-not-inert (group variance).
+- Predicted: if SFT ~doubles easy legality at flat P(exact|legal)≈0.18, easy
+  oracle@8 ~25%→~35–40%. But note the v12 caution: legality already rose
+  without moving exact, so the real test is whether SFT raises P(exact|legal)
+  (genuine search capability), not just legality again.
+- Next action: write `scripts/run_v13_sft_pilot.sh` (SFT → GRPO → evals,
+  self-gating like the v12 runner), commit, launch under nohup.
 
 ## Step 3 — CPU probes (do now / interleave; no GPU)
 
