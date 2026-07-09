@@ -187,3 +187,27 @@ If held-out tasks improve → the legality/search wall genuinely moved, KEEP.
 Given exact is easy-tier-only and 9 of ~17 easy val tasks are overlap, the
 held-out easy pool is small (~8) — lean on candidate-level legality
 (well-powered, A2) on held-out tasks as the primary evidence.
+
+## Mid-training trajectory (2026-07-09, ~80% through GRPO) — SFT warmup HOLDS
+
+Deciles of GRPO training completions, v13 (SFT→GRPO) vs C0 (cold stable):
+
+| frac | v13 valid | v13 exact | C0 valid | C0 exact |
+|---:|---:|---:|---:|---:|
+| 0.0 | 0.59 | 0.11 | 0.01 | 0.00 |
+| 0.4 | 0.75 | 0.22 | 0.20 | 0.02 |
+| 0.9 | 0.89 | 0.22 | 0.39 | 0.07 |
+
+Key reads (train-time; eval is the real test):
+- The SFT warmup does NOT decay under GRPO — legality *climbs* 0.59→0.89
+  (C0 tops at 0.39, so v13 >2× C0's legality ceiling) and train-exact holds
+  ~0.19–0.23 (C0 never exceeds 0.07, so ~3× sustained). GRPO builds ON the
+  warmup rather than washing it out.
+- GRPO is NOT inert (A6 concern): group-variance fraction stays 0.82–0.98,
+  so SFT did not collapse exploration.
+- This is qualitatively unlike v0.10/v0.12, which never moved train-exact off
+  the floor. First evidence a capability lever crosses the generation wall.
+- CAVEAT: train-exact partly reflects the (numbers,target) overlap between SFT
+  training data and eval tasks (9/50 val, 6/50 test). The load-bearing test is
+  best-of-N on HELD-OUT frozen tasks (pending) — partition per the memorization
+  control above. A held-out gain = genuine transfer; overlap-only = memorization.
