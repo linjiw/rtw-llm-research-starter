@@ -151,10 +151,38 @@ def claim_c5():
     return out
 
 
-# ---------- C6: robustness (may be pending) ----------
+# ---------- C6: robustness (harness-shift + OOD) ----------
 def claim_c6():
-    return {"harness_shift": _load(OUT / "harness_shift_scored.json") or "pending (E1)",
-            "ood": _load(OUT / "ood_scored.json") or "pending (E0 OOD stage)"}
+    out = {}
+    # Harness-shift: surface the 3-seed interaction summary (near-null closure).
+    hs = _load(OUT / "harness_shift_scored.json")
+    if hs:
+        summ = {}
+        for split, rep in hs.items():
+            ix = rep.get("interaction_3seed") if isinstance(rep, dict) else None
+            if ix:
+                summ[split] = {m: {"advantage_mean": v.get("advantage_mean"),
+                                   "sign_consistent": v.get("sign_consistent"),
+                                   "n_seeds_favor_stable": v.get("n_seeds_stable_more_robust")}
+                               for m, v in ix.items()}
+        out["harness_shift"] = summ or "present (no interaction rows)"
+    else:
+        out["harness_shift"] = "pending (E1)"
+    # OOD: surface per-arm legality + /-adoption + P(exact|legal) per split.
+    od = _load(OUT / "ood_scored.json")
+    if od:
+        summ = {}
+        for split, rep in od.items():
+            arms = rep.get("arms") if isinstance(rep, dict) else None
+            if arms:
+                summ[split] = {a: {"legality": round(s.get("legal_rate", 0), 3),
+                                   "div_adoption": round(s.get("div_adoption_rate", 0), 3),
+                                   "p_exact_given_legal": round(s.get("p_exact_given_legal", 0), 3)}
+                               for a, s in arms.items() if s.get("present")}
+        out["ood"] = summ or "present (no arms)"
+    else:
+        out["ood"] = "pending (E0 OOD stage)"
+    return out
 
 
 def md_table(rows, cols):
@@ -196,9 +224,12 @@ def main():
           md_table([{"split": k, **v} for k, v in c5.items()],
                    ["split", "static_tok_mean", "stable_tok_mean", "ratio_stable_static", "gap_over_noise"]),
           "",
-          "## C6 — Robustness (pre-registered; may be pending)",
+          "## C6 — Robustness (pre-registered): harness-shift + OOD",
           "",
-          "```", json.dumps(c6 if isinstance(c6["harness_shift"], str) else {"harness_shift": "present", "ood": "see json"}, indent=2), "```",
+          "harness-shift = stable-vs-static 3-seed interaction (near-null closes",
+          "pillar 3); OOD = per-arm legality / div-adoption / P(exact|legal).",
+          "",
+          "```", json.dumps(c6, indent=2), "```",
           ""]
     Path("docs/PAPER1_ASSETS.md").write_text("\n".join(md) + "\n")
     print("wrote docs/PAPER1_ASSETS.md + outputs/paper1_assets.json")

@@ -151,12 +151,73 @@ seeds present in banks: [0, 1, 2]
 | validation | 116.9 | 67.6 | 0.578 | 3.3 |
 | test_in_dist | 107.8 | 64.9 | 0.601 | 2.7 |
 
-## C6 — Robustness (pre-registered; may be pending)
+## C6 — Robustness (pre-registered): harness-shift + OOD
+
+harness-shift = stable-vs-static 3-seed interaction (near-null closes
+pillar 3); OOD = per-arm legality / div-adoption / P(exact|legal).
 
 ```
 {
-  "harness_shift": "present",
-  "ood": "see json"
+  "harness_shift": {
+    "validation": {
+      "legal_degradation": {
+        "advantage_mean": 0.0117,
+        "sign_consistent": false,
+        "n_seeds_favor_stable": 2
+      },
+      "f1_degradation": {
+        "advantage_mean": 0.0208,
+        "sign_consistent": false,
+        "n_seeds_favor_stable": 1
+      }
+    }
+  },
+  "ood": {
+    "test_ood_division": {
+      "base": {
+        "legality": 0.0,
+        "div_adoption": 0.63,
+        "p_exact_given_legal": 0.0
+      },
+      "stable_seed0": {
+        "legality": 0.092,
+        "div_adoption": 0.51,
+        "p_exact_given_legal": 0.0
+      },
+      "static_seed0": {
+        "legality": 0.107,
+        "div_adoption": 0.54,
+        "p_exact_given_legal": 0.023
+      },
+      "v13sft_seed0": {
+        "legality": 0.63,
+        "div_adoption": 0.0,
+        "p_exact_given_legal": 0.004
+      }
+    },
+    "test_ood_long": {
+      "base": {
+        "legality": 0.0,
+        "div_adoption": 0.147,
+        "p_exact_given_legal": 0.0
+      },
+      "stable_seed0": {
+        "legality": 0.018,
+        "div_adoption": 0.06,
+        "p_exact_given_legal": 0.0
+      },
+      "static_seed0": {
+        "legality": 0.02,
+        "div_adoption": 0.08,
+        "p_exact_given_legal": 0.0
+      },
+      "v13sft_seed0": {
+        "legality": 0.352,
+        "div_adoption": 0.0,
+        "p_exact_given_legal": 0.0
+      }
+    }
+  }
 }
 ```
 
