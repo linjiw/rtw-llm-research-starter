@@ -15,8 +15,10 @@ defers detail to): `STRATEGIC_REPIVOT_20260709.md` (direction),
 > seed while retaining GRPO 42. Numerical observations remain useful, but
 > cross-training-seed uncertainty, “above seed noise,” and confirmatory
 > multi-seed language are provisional until every compared arm is rerun under
-> `countdown-true-seeds-v2`. No new GPU experiment should start before the
-> manifest, dataset-audit, and clustered-statistics gates are completed.
+> `countdown-true-seeds-v2`. Manifest and clustered-statistics gates are now
+> complete, but the dataset audit failed: no new GPU experiment should start
+> before a human-approved, globally disjoint v2 dataset and untouched final
+> test are created. Legacy-v1 and corrected-v2 evidence must never be mixed.
 
 ---
 

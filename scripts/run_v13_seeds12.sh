@@ -93,6 +93,7 @@ for split in validation test_in_dist; do
     --arm v13sft_s0=outputs/bestofn/v13sft_seed0_${split}_limit50_n8 \
     --arm v13sft_s1=outputs/bestofn/v13sft_seed1_${split}_limit50_n8 \
     --arm v13sft_s2=outputs/bestofn/v13sft_seed2_${split}_limit50_n8 \
+    --combine_arms_as v13sft_observed_panel \
     --baseline_dirs \
       outputs/bestofn/stable_local_seed0_${split}_limit50_n8 \
       outputs/bestofn/stable_local_seed1_${split}_limit50_n8 \

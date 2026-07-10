@@ -45,6 +45,7 @@ experiment rounds as needed.
 | v0.14 | [V14_SEED_SEMANTICS_PROTOCOL_PLAN.md](V14_SEED_SEMANTICS_PROTOCOL_PLAN.md) | protocol gate — explicit legacy-v1/corrected-v2 SFT+GRPO seed semantics; legacy “3-seed” claims downgraded to stochastic repeats |
 | v0.15 | [V15_RUN_PROVENANCE_MANIFEST_PLAN.md](V15_RUN_PROVENANCE_MANIFEST_PLAN.md) | protocol gate — content-addressed intent/result manifests across SFT, GRPO, and best-of-N |
 | v0.16 | [V16_COUNTDOWN_DATASET_AUDIT_PLAN.md](V16_COUNTDOWN_DATASET_AUDIT_PLAN.md) | protocol gate — 39 legacy difficulty defects + cross-split leakage; corrected-v2 blocked |
+| v0.17 | [V17_CLUSTER_AWARE_STATISTICS_PLAN.md](V17_CLUSTER_AWARE_STATISTICS_PLAN.md) | protocol gate — task-clustered observed-panel inference; invalid pooled p-values withdrawn; raw legacy banks absent |
 
 ## Snapshots (dated, superseded by operating docs)
 
