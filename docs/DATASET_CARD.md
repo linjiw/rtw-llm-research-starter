@@ -45,3 +45,17 @@ The verifier is still used after generation to ensure the stored solution is val
 - The task is narrow and symbolic.
 - Some examples may have easier alternative solutions than the stored solution.
 - No natural language ambiguity is modeled.
+
+## Integrity and protocol status
+
+The deterministic v0.16 audit is tracked at
+`docs/artifacts/countdown_legacy_v1_audit.json` and summarized in
+`docs/V16_COUNTDOWN_DATASET_AUDIT_PLAN.md`.
+
+The committed files are historical `countdown-legacy-v1` artifacts. Every
+stored solution/completion passes the verifier, but 39 rows have fewer operands
+than their declared difficulty, cross-split semantic leakage is present, and
+stored prompts predate the current prompt functions. README/Makefile generation
+counts also do not match the committed file counts. Preserve these files for
+legacy reproduction only; they are not eligible for corrected-v2 experiments
+or a fresh final-test claim.

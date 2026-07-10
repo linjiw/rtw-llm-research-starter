@@ -17,9 +17,10 @@ Current order, one additive iteration at a time:
    `docs/V14_SEED_SEMANTICS_PROTOCOL_PLAN.md`; 117 tests, Ruff clean.
 2. ~~Write-once/content-addressed run intent + result manifests~~ **DONE,
    KEEP** — `docs/V15_RUN_PROVENANCE_MANIFEST_PLAN.md`; 131 tests, Ruff clean.
-3. **NEXT:** read-only dataset overlap/reproducibility audit; do not change
-   frozen data.
-4. Task-clustered statistical analysis replacing candidate-pseudoreplicated
+3. ~~Read-only dataset overlap/reproducibility audit~~ **DONE — FAIL/BLOCK**.
+   Legacy has 39 difficulty-count defects plus cross-split leakage; artifact:
+   `docs/artifacts/countdown_legacy_v1_audit.json`. Frozen data remain unchanged.
+4. **NEXT:** task-clustered statistical analysis replacing candidate-pseudoreplicated
    p-values.
 5. Only then define the smallest corrected-v2 rerun ladder. Every compared arm
    must be regenerated under v2; never mix legacy-v1 and corrected-v2 banks.
@@ -27,6 +28,10 @@ Current order, one additive iteration at a time:
 The externally running v13/OOD chain may finish as legacy evidence, but it is
 not a substitute for corrected-v2 seed confirmation. Do not launch the queued
 harness-shift or MicroCode base probe yet.
+
+Corrected-v2 additionally requires a separate human-approved dataset protocol:
+fix the generator's leftover-node bug, enforce global semantic disjointness,
+and reserve an untouched final test. Do not overwrite legacy files.
 
 ## HEADLINE: v0.13 SFT-warmup → KEEP, decisively (ledger `v0.13-sft`)
 

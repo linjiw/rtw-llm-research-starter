@@ -1,7 +1,7 @@
 # v0.16 protocol gate: Countdown dataset integrity and leakage audit
 
-Created: 2026-07-09. Status: pre-registered read-only audit; frozen legacy
-datasets and task-ID files must not be modified.
+Created: 2026-07-09. Status: **completed — legacy integrity FAIL and corrected-v2
+BLOCKED**; frozen legacy datasets and task-ID files were not modified.
 
 ## Question
 
@@ -63,3 +63,31 @@ globally disjoint dataset/version and untouched final test are created.
   overlap, invalid verifier output, bad frozen IDs, prompt drift, and
   deterministic byte-identical reports.
 - Full pytest and Ruff pass; independent diff review clears the implementation.
+
+## Result
+
+Artifact: `docs/artifacts/countdown_legacy_v1_audit.json`, generated from code
+commit `dce2e88`.
+
+- All **2,800/2,800** stored solutions and completions pass the source-of-truth
+  verifier; schemas, IDs, and frozen-ID membership are otherwise clean.
+- **39 rows** have fewer operands than their difficulty specification: train
+  20, validation 4, test-in-dist 2, OOD-division 6, OOD-long 7. Generator replay
+  reproduces them. Root cause is the legacy generator accepting a leftover node
+  after rejecting an oversized combination; this is an existing data-generation
+  defect, not an audit failure.
+- Exact semantic leakage: train↔validation 40/200, train↔test 35/200,
+  train↔OOD-long 2/200, validation↔test 5/200. Loose-only train↔OOD-division:
+  4/200.
+- Frozen-50 train exposure: validation 9/50, test 6/50, OOD 0. Frozen
+  validation↔test also share one semantic task.
+- Every stored low/mid/high prompt differs byte-for-byte from the current prompt
+  functions; completions still match and verify.
+- The inferred legacy recipe (2000/200 counts, seed 42 + split offsets) replays
+  every non-prompt field and row order. README and Makefile instead advertise
+  5000/500, so reproduction was not documented accurately.
+
+Verdict: `INTEGRITY_FAIL`, `corrected_v2_eligible=false`. Preserve legacy data
+for historical artifact reproduction. Do not use it for corrected-v2 training
+or final evaluation. A globally disjoint v2 dataset and untouched final test
+require a separate, human-approved protocol iteration.
