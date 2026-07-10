@@ -34,11 +34,16 @@ Current order, one additive iteration at a time:
    0/1/2, dev100/confirm400, practical reranked exact@8, task-cluster inference,
    batched-HF identity, production runtime/launch locks, and technical one-shot
    test access. Never mix legacy-v1 and v2 banks.
-7. **NEXT:** commit the reviewed v0.19 implementation, run the bounded local
-   MPS preflight, then capture and commit a homogeneous one-GPU CUDA environment
-   lock before any production seed-0 launch. Production remains blocked here:
-   this host has MPS but no CUDA, and no production environment/launch record
-   exists.
+7. ~~Commit the reviewed v0.19 implementation and run the bounded local MPS
+   preflight.~~ **DONE — INFRASTRUCTURE PASS.** Commit `5b4446c`; SFT, fresh
+   GRPO, SFT→GRPO continuation, strict manifests, separate reward logs, and two
+   dev-ID batched evaluations all completed. The one-step/two-generation GRPO
+   groups had zero variance, which is allowed only for this infrastructure
+   smoke; production health requires observed group variance.
+8. **NEXT:** capture and commit a homogeneous one-GPU CUDA environment lock and
+   launch record before production seed 0. Production remains blocked here:
+   this host has MPS but no CUDA. Artifact:
+   `docs/artifacts/v19_mps_preflight.json`.
 
 The externally running v13/OOD chain may finish as legacy evidence, but it is
 not a substitute for corrected-v2 seed confirmation. Do not launch the queued
