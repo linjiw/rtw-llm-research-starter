@@ -127,7 +127,7 @@ def _semantic_key(record: dict[str, Any]) -> tuple[tuple[int, ...], int, tuple[s
     return (
         tuple(sorted(record["numbers"])),
         record["target"],
-        tuple(record["allowed_ops"]),
+        tuple(sorted(set(record["allowed_ops"]))),
     )
 
 

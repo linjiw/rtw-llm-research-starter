@@ -349,6 +349,12 @@ def test_independent_auditor_rejects_operator_order_and_malformed_rows(monkeypat
     assert any("missing fields" in error for error in v2_audit._record_errors("validation", malformed))
 
 
+def test_independent_audit_semantic_key_canonicalizes_operator_order():
+    row = {"numbers": [3, 1, 2], "target": 6, "allowed_ops": ["+", "-", "*"]}
+    reordered = {"numbers": [2, 3, 1], "target": 6, "allowed_ops": ["*", "+", "-"]}
+    assert v2_audit._semantic_key(row) == v2_audit._semantic_key(reordered)
+
+
 @pytest.mark.parametrize("corruption", ["manifest", "jsonl", "missing_file"])
 def test_repository_audit_returns_deterministic_integrity_fail_for_malformed_inputs(
     tmp_path, corruption
