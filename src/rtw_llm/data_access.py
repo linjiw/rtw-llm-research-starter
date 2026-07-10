@@ -16,6 +16,10 @@ FINAL_RELEASE_SCHEMA = "countdown-v2-final-release-v1"
 FINAL_SPLIT_NAME = "final_test_in_dist"
 FINAL_JSONL = f"{FINAL_SPLIT_NAME}.jsonl"
 FINAL_IDS = f"task_ids/{FINAL_SPLIT_NAME}.txt"
+TEST_SPLIT_NAME = "test_in_dist"
+TEST_JSONL = f"{TEST_SPLIT_NAME}.jsonl"
+TEST_IDS = f"task_ids/{TEST_SPLIT_NAME}.txt"
+VALIDATION_SPLIT_NAME = "validation"
 COMMIT_RE = re.compile(r"[0-9a-f]{40}")
 FINAL_RELEASE_CAPABLE_RUNNERS = {"07_best_of_n_rerank"}
 
@@ -93,6 +97,31 @@ def _final_reference(
     )
 
 
+def _split_reference(
+    dataset_root: Path, manifest: dict[str, Any], *, split: str
+) -> tuple[list[dict[str, Any]], set[str], set[str], set[str], set[str]]:
+    jsonl_relative = f"{split}.jsonl"
+    ids_relative = f"task_ids/{split}.txt"
+    jsonl_path = dataset_root / jsonl_relative
+    ids_path = dataset_root / ids_relative
+    artifacts = manifest.get("artifacts", {})
+    for relative, path in ((jsonl_relative, jsonl_path), (ids_relative, ids_path)):
+        expected = artifacts.get(relative)
+        if not isinstance(expected, dict) or file_record(path) != expected:
+            raise DataAccessError(f"Protected artifact does not match manifest: {relative}")
+    rows = _read_jsonl(jsonl_path)
+    ids = [line.strip() for line in ids_path.read_text().splitlines() if line.strip()]
+    if ids != [str(row.get("id")) for row in rows]:
+        raise DataAccessError(f"Protected ordered IDs do not match {split} JSONL")
+    return (
+        rows,
+        set(ids),
+        {semantic_task_key(row) for row in rows},
+        {_loose_task_key(row) for row in rows},
+        {_row_digest(row) for row in rows},
+    )
+
+
 def _git_output(repo_root: Path, *args: str) -> str:
     try:
         return subprocess.run(
@@ -152,9 +181,13 @@ def assert_countdown_data_access(
     purpose: Literal["training", "training_eval", "model_eval"],
     runner: str,
     release_record: str | Path | None = None,
+    test_release_record: str | Path | None = None,
+    experiment_protocol: str | None = None,
+    ordered_task_ids_file: str | Path | None = None,
+    confirmation_ready_record: str | Path | None = None,
     repo_root: str | Path | None = None,
 ) -> None:
-    """Reject any unreleased row-level intersection with the v2 final test."""
+    """Reject unauthorized row-level intersections with protected v2 tests."""
     root = (
         Path(repo_root).resolve()
         if repo_root is not None
@@ -180,6 +213,16 @@ def assert_countdown_data_access(
     final_rows, final_ids, final_semantics, final_loose_keys, final_digests = _final_reference(
         dataset_root, manifest
     )
+    test_rows, test_ids, test_semantics, test_loose_keys, test_digests = _split_reference(
+        dataset_root, manifest, split=TEST_SPLIT_NAME
+    )
+    (
+        _validation_rows,
+        validation_ids,
+        validation_semantics,
+        validation_loose_keys,
+        validation_digests,
+    ) = _split_reference(dataset_root, manifest, split=VALIDATION_SPLIT_NAME)
     input_rows = _read_jsonl(path)
     input_ids = {str(row.get("id")) for row in input_rows}
     try:
@@ -188,31 +231,145 @@ def assert_countdown_data_access(
     except Exception as exc:
         raise DataAccessError(f"Cannot canonicalize input task semantics: {exc}") from exc
     input_digests = {_row_digest(row) for row in input_rows}
-    intersections = {
+    final_intersections = {
         "ids": len(input_ids & final_ids),
         "semantic_keys": len(input_semantics & final_semantics),
         "loose_keys": len(input_loose_keys & final_loose_keys),
         "row_digests": len(input_digests & final_digests),
     }
-    if not any(intersections.values()):
+    test_intersections = {
+        "ids": len(input_ids & test_ids),
+        "semantic_keys": len(input_semantics & test_semantics),
+        "loose_keys": len(input_loose_keys & test_loose_keys),
+        "row_digests": len(input_digests & test_digests),
+    }
+    validation_intersections = {
+        "ids": len(input_ids & validation_ids),
+        "semantic_keys": len(input_semantics & validation_semantics),
+        "loose_keys": len(input_loose_keys & validation_loose_keys),
+        "row_digests": len(input_digests & validation_digests),
+    }
+    input_declares_v2 = any(
+        str(row.get("id", "")).startswith("v2_")
+        or (
+            isinstance(row.get("metadata"), dict)
+            and row["metadata"].get("dataset_protocol") == "countdown-dataset-v2"
+        )
+        for row in input_rows
+    )
+    protected_test_intersection = bool(
+        test_intersections["ids"]
+        or test_intersections["row_digests"]
+        or (
+            input_declares_v2
+            and (test_intersections["semantic_keys"] or test_intersections["loose_keys"])
+        )
+    )
+    protected_validation_intersection = bool(
+        validation_intersections["ids"]
+        or validation_intersections["row_digests"]
+        or (
+            input_declares_v2
+            and (
+                validation_intersections["semantic_keys"]
+                or validation_intersections["loose_keys"]
+            )
+        )
+    )
+    if any(final_intersections.values()):
+        if purpose != "model_eval":
+            raise DataAccessError(
+                f"Sealed final-test rows are forbidden for {purpose}: "
+                f"intersections={final_intersections}"
+            )
+        if file_record(path)["sha256"] != manifest["final_test_protection"]["jsonl_sha256"]:
+            raise DataAccessError("Released final evaluation requires the exact complete final JSONL")
+        if len(input_rows) != len(final_rows):
+            raise DataAccessError("Released final evaluation requires every final-test row")
+        if release_record is None:
+            raise DataAccessError("Final-test model evaluation requires an explicit release record")
+        release_path = Path(release_record)
+        if not release_path.is_absolute():
+            release_path = root / release_path
+        _validate_release(
+            release_path,
+            runner=runner,
+            repo_root=root,
+            manifest_path=manifest_path,
+            manifest=manifest,
+        )
+        return
+    if protected_validation_intersection:
+        if purpose != "model_eval":
+            raise DataAccessError(
+                f"V0.19 validation rows are forbidden for {purpose}: "
+                f"intersections={validation_intersections}"
+            )
+        from .v19_protocol import (
+            CONFIRMATION_READY_RECORD,
+            PROTOCOL_DIR,
+            PROTOCOL_ID,
+            VIEW_FILES,
+            V19ProtocolError,
+            validate_confirmation_ready,
+        )
+
+        if ordered_task_ids_file is None:
+            raise DataAccessError("V0.19 validation evaluation requires a registered ID view")
+        ordered_path = Path(ordered_task_ids_file)
+        if not ordered_path.is_absolute():
+            ordered_path = root / ordered_path
+        if not ordered_path.is_file():
+            raise DataAccessError("V0.19 ordered validation ID view does not exist")
+        actual_ids = file_record(ordered_path)
+        dev_ids = file_record(root / PROTOCOL_DIR / VIEW_FILES["validation_dev100"])
+        preflight_ids = file_record(
+            root / PROTOCOL_DIR / VIEW_FILES["validation_preflight2"]
+        )
+        confirm_ids = file_record(
+            root / PROTOCOL_DIR / VIEW_FILES["validation_confirm400"]
+        )
+        if actual_ids == preflight_ids:
+            return
+        if experiment_protocol != PROTOCOL_ID:
+            raise DataAccessError("Registered validation views require the v0.19 protocol")
+        if actual_ids == dev_ids:
+            return
+        if actual_ids != confirm_ids:
+            raise DataAccessError("Unregistered validation task-ID view is forbidden")
+        if confirmation_ready_record is None:
+            raise DataAccessError("Confirmation validation requires a readiness record")
+        ready_path = Path(confirmation_ready_record)
+        if not ready_path.is_absolute():
+            ready_path = root / ready_path
+        if ready_path.resolve() != (root / CONFIRMATION_READY_RECORD).resolve():
+            raise DataAccessError("Confirmation readiness record path is not registered")
+        try:
+            validate_confirmation_ready(ready_path, repo_root=root)
+        except V19ProtocolError as exc:
+            raise DataAccessError(str(exc)) from exc
+        return
+    if not protected_test_intersection:
         return
     if purpose != "model_eval":
         raise DataAccessError(
-            f"Sealed final-test rows are forbidden for {purpose}: intersections={intersections}"
+            f"One-shot test rows are forbidden for {purpose}: intersections={test_intersections}"
         )
-    if file_record(path)["sha256"] != manifest["final_test_protection"]["jsonl_sha256"]:
-        raise DataAccessError("Released final evaluation requires the exact complete final JSONL")
-    if len(input_rows) != len(final_rows):
-        raise DataAccessError("Released final evaluation requires every final-test row")
-    if release_record is None:
-        raise DataAccessError("Final-test model evaluation requires an explicit release record")
-    release_path = Path(release_record)
-    if not release_path.is_absolute():
-        release_path = root / release_path
-    _validate_release(
-        release_path,
-        runner=runner,
-        repo_root=root,
-        manifest_path=manifest_path,
-        manifest=manifest,
-    )
+    expected_test = manifest.get("artifacts", {}).get(TEST_JSONL)
+    if not isinstance(expected_test, dict) or file_record(path) != expected_test:
+        raise DataAccessError("Released one-shot test requires the exact complete test JSONL")
+    if len(input_rows) != len(test_rows):
+        raise DataAccessError("Released one-shot test requires every test row")
+    if test_release_record is None:
+        raise DataAccessError("One-shot test model evaluation requires an explicit release record")
+    from .v19_protocol import PROTOCOL_ID, V19ProtocolError, validate_test_release
+
+    if experiment_protocol != PROTOCOL_ID:
+        raise DataAccessError(f"One-shot test release requires experiment_protocol={PROTOCOL_ID}")
+    test_release_path = Path(test_release_record)
+    if not test_release_path.is_absolute():
+        test_release_path = root / test_release_path
+    try:
+        validate_test_release(test_release_path, repo_root=root, runner=runner)
+    except V19ProtocolError as exc:
+        raise DataAccessError(str(exc)) from exc

@@ -28,19 +28,27 @@ Current order, one additive iteration at a time:
    leftover-node generator defect, and reserve an untouched final test~~
    **DONE — AUDIT ELIGIBLE, KEEP**. 7,500 tasks, zero exact/loose overlap,
    byte-identical replay, legacy hashes unchanged, final test sealed/unreleased.
-6. **NEXT:** pre-register and review the smallest complete within-v2 baseline
-   reset. Never mix legacy-v1 and v2 banks or interpret their difference as a
-   one-variable method effect.
+6. ~~Pre-register and review the smallest complete within-v2 baseline reset.~~
+   **DONE — DESIGN CLEAR, IMPLEMENTED.** Protocol
+   `countdown-v19-within-v2-reset-v1` freezes 16 model states, true seeds
+   0/1/2, dev100/confirm400, practical reranked exact@8, task-cluster inference,
+   batched-HF identity, production runtime/launch locks, and technical one-shot
+   test access. Never mix legacy-v1 and v2 banks.
+7. **NEXT:** commit the reviewed v0.19 implementation, run the bounded local
+   MPS preflight, then capture and commit a homogeneous one-GPU CUDA environment
+   lock before any production seed-0 launch. Production remains blocked here:
+   this host has MPS but no CUDA, and no production environment/launch record
+   exists.
 
 The externally running v13/OOD chain may finish as legacy evidence, but it is
 not a substitute for corrected-v2 seed confirmation. Do not launch the queued
 harness-shift or MicroCode base probe yet.
 
-Corrected-v2 data are now available under `data/countdown_v2/`. No GPU launch is
-authorized until v0.19 freezes the within-v2 arm matrix, pinned model revision,
-true seed roles, token/step budgets, validation stopping rule, one-shot
-confirmation rule, and task-clustered analysis. The final test remains blocked
-by runner guards and has no release record.
+Corrected-v2 data are available under `data/countdown_v2/`; v0.19 has frozen the
+within-v2 matrix and analysis. Production launch now additionally requires the
+committed CUDA environment lock and USD/GPU-hour launch record. The final test
+and one-shot in-distribution test both remain blocked and have no release
+records.
 
 Everything below this gate is historical legacy-v1 planning and interpretation,
 not an active launch queue. In particular, this checkout does not contain the

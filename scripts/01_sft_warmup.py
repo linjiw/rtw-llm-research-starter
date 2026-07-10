@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import json
+import time
 from pathlib import Path
 
 import torch
@@ -46,6 +48,7 @@ def main() -> None:
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
     parser.add_argument("--strict_provenance", action="store_true")
+    parser.add_argument("--experiment_protocol", default=None)
     parser.add_argument(
         "--completion_only_loss",
         action="store_true",
@@ -58,6 +61,13 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    if args.experiment_protocol is not None:
+        from rtw_llm.v19_protocol import PROTOCOL_ID, validate_v19_sft_args
+
+        if args.experiment_protocol != PROTOCOL_ID:
+            raise ValueError(f"Unsupported experiment protocol: {args.experiment_protocol}")
+        validate_v19_sft_args(vars(args))
 
     repo_root = Path(__file__).resolve().parents[1]
     assert_countdown_data_access(
@@ -126,6 +136,16 @@ def main() -> None:
         "run_name": Path(args.output_dir).name,
         "seed": int(seed_plan["trainer_seed"]),
         "trust_remote_code": True,
+        "lr_scheduler_type": "linear",
+        "warmup_steps": 0,
+        "weight_decay": 0.0,
+        "max_grad_norm": 1.0,
+        "gradient_checkpointing": True,
+        "dataloader_drop_last": False,
+        "save_strategy": "steps",
+        "eval_strategy": "no",
+        "packing": False,
+        "shuffle_dataset": False,
     }
     if args.completion_only_loss:
         config_kwargs["completion_only_loss"] = True
@@ -136,6 +156,8 @@ def main() -> None:
         }
     set_first_supported_kwarg(SFTConfig, config_kwargs, ["max_seq_length", "max_length"], 1024)
     train_args = SFTConfig(**supported_config_kwargs(SFTConfig, config_kwargs))
+    if args.experiment_protocol and str(train_args.eval_strategy) not in {"no", "IntervalStrategy.NO"}:
+        raise RuntimeError("V0.19 SFT requires resolved eval_strategy=no")
 
     output_dir = Path(args.output_dir)
     if args.strict_provenance:
@@ -172,9 +194,20 @@ def main() -> None:
         peft_config=peft_config,
         processing_class=processing_class,
     )
+    started_at = time.time()
     trainer.train()
+    wall_clock_seconds = time.time() - started_at
     trainer.save_model(args.output_dir)
     if args.strict_provenance:
+        training_state = {
+            "global_step": int(trainer.state.global_step),
+            "max_steps": int(trainer.state.max_steps),
+            "log_history": trainer.state.log_history,
+            "wall_clock_seconds": wall_clock_seconds,
+        }
+        (output_dir / "training_state.json").write_text(
+            json.dumps(training_state, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        )
         write_result(
             output_dir,
             artifact_paths={
@@ -182,7 +215,9 @@ def main() -> None:
                 "adapter_weights": output_dir / "adapter_model.safetensors",
                 "tokenizer_config": output_dir / "tokenizer_config.json",
                 "training_args": output_dir / "training_args.bin",
+                "training_state": output_dir / "training_state.json",
             },
+            observations={"wall_clock_seconds": wall_clock_seconds},
         )
 
 

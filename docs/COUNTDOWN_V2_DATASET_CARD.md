@@ -92,6 +92,27 @@ size/mix, and evaluation size. A v2-minus-legacy difference is not a causal
 method effect. Base, SFT-only, GRPO-only, static, Stable-RTW, and combined arms
 needed by a claim must all be rerun within v2 at identical budgets.
 
+### V0.19 registered validation view
+
+Protocol `countdown-v19-within-v2-reset-v1` makes an explicit, stricter
+override for the first complete reset. It deterministically partitions the 500
+validation tasks into dev100 (10 easy/45 medium/45 hard) and an untouched
+confirm400 (40/180/180). The ordered views are complete and disjoint and are
+bound to the validation JSONL hash under `protocols/countdown_v2/v19/`.
+V0.19's estimand is confirm400 alone; dev100 is never recombined into it.
+Full validation and confirm400 IDs fail closed until a committed readiness
+record binds all 15 healthy training states, all six seed-0 dev banks, the
+content-addressed dev score, source/runtime/config identities, and adapter
+parents. Candidate payloads are matched back to the frozen validation rows.
+
+The in-distribution test is now technically one-shot for official runners. A
+full exact test file, no subset or task-ID filter, a clean frozen source state,
+all 16 verified confirmation-state identities and adapter provenance chains,
+the content-addressed confirm400 score, the v0.19 sampling signature, and a
+human-approved release record are required.
+No such record exists. The separately sealed final test remains governed by its
+stronger existing release process and is not released by v0.19.
+
 ## Limitations
 
 - Narrow synthetic arithmetic task with construction artifacts.

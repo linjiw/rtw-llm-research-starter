@@ -18,12 +18,14 @@ RESULT_NAME = "run_result.json"
 NON_IDENTITY_ARG_KEYS = {"output_dir", "skip_if_complete", "strict_provenance"}
 CONTENT_ADDRESSED_ARG_KEYS = {
     "adapter_path",
+    "confirmation_ready_record",
     "data_path",
     "eval_path",
     "final_test_release_record",
     "init_adapter_path",
     "model_name",
     "task_ids_file",
+    "test_release_record",
     "train_path",
 }
 NON_IDENTITY_CONFIG_KEYS = {"output_dir", "run_name", "logging_dir"}
@@ -136,12 +138,39 @@ def git_record(repo_root: str | Path) -> dict[str, Any]:
 
 def runtime_record() -> dict[str, Any]:
     packages = {}
-    for name in ("torch", "transformers", "trl", "datasets", "peft"):
+    for name in (
+        "torch",
+        "transformers",
+        "trl",
+        "datasets",
+        "peft",
+        "accelerate",
+        "numpy",
+        "tokenizers",
+        "safetensors",
+    ):
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
             packages[name] = None
-    hardware: dict[str, Any] = {"machine": platform.machine(), "processor": platform.processor()}
+    hardware: dict[str, Any] = {
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+    }
+    execution: dict[str, Any] = {
+        "world_size": int(os.environ.get("WORLD_SIZE", "1")),
+        "rank": int(os.environ.get("RANK", "0")),
+        "local_rank": int(os.environ.get("LOCAL_RANK", "0")),
+        "precision_environment": {
+            key: os.environ.get(key)
+            for key in (
+                "CUDA_VISIBLE_DEVICES",
+                "CUBLAS_WORKSPACE_CONFIG",
+                "PYTORCH_CUDA_ALLOC_CONF",
+                "NVIDIA_TF32_OVERRIDE",
+            )
+        },
+    }
     try:
         import torch
 
@@ -152,9 +181,39 @@ def runtime_record() -> dict[str, Any]:
                 "cuda_devices": [
                     torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())
                 ],
+                "cuda_device_count": int(torch.cuda.device_count()),
+                "cudnn_version": torch.backends.cudnn.version(),
                 "mps_available": bool(
                     hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
                 ),
+            }
+        )
+        if torch.cuda.is_available():
+            try:
+                driver = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.splitlines()
+                hardware["nvidia_driver_versions"] = sorted(
+                    {value.strip() for value in driver if value.strip()}
+                )
+            except (OSError, subprocess.CalledProcessError):
+                hardware["nvidia_driver_versions"] = None
+        execution.update(
+            {
+                "torch_num_threads": int(torch.get_num_threads()),
+                "torch_num_interop_threads": int(torch.get_num_interop_threads()),
+                "deterministic_algorithms": bool(torch.are_deterministic_algorithms_enabled()),
+                "deterministic_warn_only": bool(
+                    torch.is_deterministic_algorithms_warn_only_enabled()
+                ),
+                "cudnn_deterministic": bool(torch.backends.cudnn.deterministic),
+                "cudnn_benchmark": bool(torch.backends.cudnn.benchmark),
+                "cuda_matmul_allow_tf32": bool(torch.backends.cuda.matmul.allow_tf32),
+                "cudnn_allow_tf32": bool(torch.backends.cudnn.allow_tf32),
+                "float32_matmul_precision": torch.get_float32_matmul_precision(),
             }
         )
     except ImportError:
@@ -164,6 +223,7 @@ def runtime_record() -> dict[str, Any]:
         "platform": platform.platform(),
         "packages": packages,
         "hardware": hardware,
+        "execution": execution,
     }
 
 

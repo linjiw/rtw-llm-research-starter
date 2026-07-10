@@ -259,6 +259,7 @@ def write_run_config(
         "method": args.method,
         "training_seed": args.training_seed,
         "training_protocol": args.training_protocol,
+        "experiment_protocol": args.experiment_protocol,
         "sampling_seed": args.seed,
         "split": args.split,
         "model_name": args.model_name,
@@ -280,6 +281,8 @@ def write_run_config(
         "hf_gen_mode": args.hf_gen_mode,
         "effective_generation_config": effective_generation_config,
         "final_test_release_record": args.final_test_release_record,
+        "test_release_record": args.test_release_record,
+        "confirmation_ready_record": args.confirmation_ready_record,
     }
     (output_dir / "run_config.json").write_text(json.dumps(config, indent=2) + "\n")
 
@@ -325,22 +328,67 @@ def main() -> None:
     parser.add_argument("--skip_if_complete", action="store_true")
     parser.add_argument("--strict_provenance", action="store_true")
     parser.add_argument("--final_test_release_record", default=None)
+    parser.add_argument("--test_release_record", default=None)
+    parser.add_argument("--experiment_protocol", default=None)
+    parser.add_argument("--confirmation_ready_record", default=None)
     args = parser.parse_args()
 
     if args.final_test_release_record and not args.strict_provenance:
         raise ValueError("Released final-test best-of-N requires --strict_provenance")
     if args.final_test_release_record and (args.limit is not None or args.task_ids_file):
         raise ValueError("Released final-test best-of-N forbids --limit and --task_ids_file")
+    if args.test_release_record and (args.limit is not None or args.task_ids_file):
+        raise ValueError("Released one-shot test best-of-N forbids --limit and --task_ids_file")
+    if args.test_release_record and not args.strict_provenance:
+        raise ValueError("Released one-shot test best-of-N requires --strict_provenance")
     if args.training_protocol == TRUE_SEED_PROTOCOL and not args.strict_provenance:
         raise ValueError("countdown-true-seeds-v2 evaluation requires --strict_provenance")
     if args.strict_provenance and args.engine != "hf":
         raise ValueError("Strict provenance currently supports only the hf engine")
+    n_values = parse_n_values(args.n_values)
+    max_n = args.max_n or max(n_values)
+    if max(n_values) > max_n:
+        raise ValueError(f"max --n_values {max(n_values)} exceeds --max_n {max_n}")
+    if args.experiment_protocol is not None:
+        from rtw_llm.v19_protocol import PROTOCOL_ID, validate_v19_eval_args
+
+        if args.experiment_protocol != PROTOCOL_ID:
+            raise ValueError(f"Unsupported experiment protocol: {args.experiment_protocol}")
+        validate_v19_eval_args({**vars(args), "n_values": n_values, "max_n": max_n})
     repo_root = Path(__file__).resolve().parents[1]
+    if args.task_ids_file:
+        from rtw_llm.provenance import file_record
+        from rtw_llm.v19_protocol import (
+            CONFIRMATION_READY_RECORD,
+            PROTOCOL_DIR,
+            PROTOCOL_ID,
+            VIEW_FILES,
+            validate_confirmation_ready,
+        )
+
+        requested_ids = Path(args.task_ids_file)
+        if not requested_ids.is_absolute():
+            requested_ids = repo_root / requested_ids
+        confirm_ids = repo_root / PROTOCOL_DIR / VIEW_FILES["validation_confirm400"]
+        if requested_ids.is_file() and confirm_ids.is_file() and file_record(
+            requested_ids
+        ) == file_record(confirm_ids):
+            if args.experiment_protocol != PROTOCOL_ID:
+                raise ValueError("Confirmation task IDs require the registered v0.19 protocol")
+            if args.confirmation_ready_record is None:
+                raise ValueError("Confirmation task IDs require a readiness record")
+            if Path(args.confirmation_ready_record).as_posix() != CONFIRMATION_READY_RECORD.as_posix():
+                raise ValueError("Confirmation readiness record path is not registered")
+            validate_confirmation_ready(args.confirmation_ready_record, repo_root=repo_root)
     assert_countdown_data_access(
         args.data_path,
         purpose="model_eval",
         runner="07_best_of_n_rerank",
         release_record=args.final_test_release_record,
+        test_release_record=args.test_release_record,
+        experiment_protocol=args.experiment_protocol,
+        ordered_task_ids_file=args.task_ids_file,
+        confirmation_ready_record=args.confirmation_ready_record,
         repo_root=repo_root,
     )
 
@@ -355,11 +403,6 @@ def main() -> None:
         set_seed(args.seed)
     except Exception:
         pass
-
-    n_values = parse_n_values(args.n_values)
-    max_n = args.max_n or max(n_values)
-    if max(n_values) > max_n:
-        raise ValueError(f"max --n_values {max(n_values)} exceeds --max_n {max_n}")
 
     if args.engine == "vllm" and args.hf_gen_mode != "loop":
         raise ValueError("--hf_gen_mode applies to the hf engine only")
@@ -389,6 +432,10 @@ def main() -> None:
             input_files["ordered_task_ids"] = args.task_ids_file
         if args.final_test_release_record:
             input_files["final_test_release"] = args.final_test_release_record
+        if args.test_release_record:
+            input_files["test_release"] = args.test_release_record
+        if args.confirmation_ready_record:
+            input_files["confirmation_ready"] = args.confirmation_ready_record
         provenance_identity = build_run_identity(
             run_kind="best_of_n",
             requested_args=vars(args),
@@ -469,8 +516,18 @@ def main() -> None:
         batch = expanded[start : start + args.batch_size]
         prompts = [ex[args.prompt_field] for ex, _ in batch]
         completions = engine.generate(prompts, gen_config)
-        for (ex, candidate_index), completion in zip(batch, completions):
+        generation_metadata = (
+            engine.last_generation_metadata()
+            if hasattr(engine, "last_generation_metadata")
+            else [{} for _ in completions]
+        )
+        if len(generation_metadata) != len(completions):
+            raise RuntimeError("Generation metadata length does not match completions")
+        for (ex, candidate_index), completion, generation_meta in zip(
+            batch, completions, generation_metadata
+        ):
             metrics = metrics_for_completion(completion, ex)
+            exact_token_count = generation_meta.get("generated_token_count")
             row = {
                 "id": ex["id"],
                 "difficulty": ex["difficulty"],
@@ -482,7 +539,16 @@ def main() -> None:
                 "raw_generation": completion,
                 "completion": completion,
                 "extracted_expression": metrics.get("expression"),
-                "completion_token_count": count_completion_tokens(engine, completion),
+                "completion_token_count": (
+                    int(exact_token_count)
+                    if exact_token_count is not None
+                    else count_completion_tokens(engine, completion)
+                ),
+                "token_count_source": (
+                    "generated_token_ids" if exact_token_count is not None else "decoded_retokenized"
+                ),
+                "finish_reason": generation_meta.get("finish_reason"),
+                "completion_hit_cap": generation_meta.get("completion_hit_cap"),
                 "metrics": metrics,
                 "practical_score": practical_score(metrics),
                 "selected_by_practical_n": [],
@@ -519,6 +585,7 @@ def main() -> None:
             "seed": args.seed,
             "training_seed": args.training_seed,
             "training_protocol": args.training_protocol,
+            "experiment_protocol": args.experiment_protocol,
             "method": args.method,
             "split": args.split,
             "max_n": max_n,

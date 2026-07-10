@@ -10,6 +10,7 @@ import pytest
 
 import rtw_llm.data_access as data_access
 import rtw_llm.countdown_v2_audit as v2_audit
+import rtw_llm.v19_protocol as v19_protocol
 from rtw_llm.countdown import (
     difficulty_spec,
     random_solvable_task,
@@ -253,6 +254,78 @@ def test_data_guard_allows_nonfinal_rows_and_blocks_unreleased_final(tmp_path):
             output / "final_test_in_dist.jsonl",
             purpose="model_eval",
             runner="03_eval",
+            repo_root=tmp_path,
+        )
+
+
+def test_data_guard_blocks_one_shot_test_until_v19_release(monkeypatch, tmp_path):
+    output, records, _ = publish_small_dataset(tmp_path)
+    test_path = output / "test_in_dist.jsonl"
+    with pytest.raises(DataAccessError, match="forbidden for training"):
+        assert_countdown_data_access(
+            test_path,
+            purpose="training",
+            runner="01_sft_warmup",
+            repo_root=tmp_path,
+        )
+    with pytest.raises(DataAccessError, match="requires an explicit release record"):
+        assert_countdown_data_access(
+            test_path,
+            purpose="model_eval",
+            runner="07_best_of_n_rerank",
+            repo_root=tmp_path,
+        )
+
+
+def test_data_guard_blocks_full_validation_and_training_eval(monkeypatch, tmp_path):
+    output, records, _ = publish_small_dataset(tmp_path)
+    validation = output / "validation.jsonl"
+    test_path = output / "test_in_dist.jsonl"
+    with pytest.raises(DataAccessError, match="forbidden for training_eval"):
+        assert_countdown_data_access(
+            validation,
+            purpose="training_eval",
+            runner="02_grpo_train",
+            repo_root=tmp_path,
+        )
+    with pytest.raises(DataAccessError, match="requires a registered ID view"):
+        assert_countdown_data_access(
+            validation,
+            purpose="model_eval",
+            runner="03_eval",
+            repo_root=tmp_path,
+        )
+
+    calls = []
+
+    def allow_release(path, *, repo_root, runner):
+        calls.append((path, repo_root, runner))
+
+    monkeypatch.setattr(v19_protocol, "validate_test_release", allow_release)
+    release = tmp_path / "release.json"
+    assert_countdown_data_access(
+        test_path,
+        purpose="model_eval",
+        runner="07_best_of_n_rerank",
+        test_release_record=release,
+        experiment_protocol=v19_protocol.PROTOCOL_ID,
+        repo_root=tmp_path,
+    )
+    assert calls == [(release, tmp_path.resolve(), "07_best_of_n_rerank")]
+
+    changed = {
+        **records["test_in_dist"][0],
+        "id": "changed-test-id",
+    }
+    copied = tmp_path / "changed-test.jsonl"
+    copied.write_bytes(canonical_json_bytes(changed))
+    with pytest.raises(DataAccessError, match="exact complete test JSONL"):
+        assert_countdown_data_access(
+            copied,
+            purpose="model_eval",
+            runner="07_best_of_n_rerank",
+            test_release_record=release,
+            experiment_protocol=v19_protocol.PROTOCOL_ID,
             repo_root=tmp_path,
         )
 

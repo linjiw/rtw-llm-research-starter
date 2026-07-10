@@ -21,6 +21,14 @@ the ledger and this program between sessions and improves the program itself.
 > remains paused until that plan is reviewed and committed. This override
 > supersedes the older Gate-0/queue text below.
 
+> **2026-07-10 v0.19 update:** the complete within-v2 reset is registered and
+> independently design-cleared. Its practical reranked exact@8 confirm400
+> endpoint, true-seed matrix, fixed batched-HF stream, task-cluster inference,
+> and one-shot test gate supersede Sections 2--3's legacy 50-task objective for
+> corrected-v2 work. The next gate is a bounded local preflight, followed by a
+> precommitted homogeneous CUDA environment and launch budget. No production,
+> in-distribution test, or final-test run is authorized without those records.
+
 ## 1. North-star goal
 
 > Show that adaptive curricula — RTW-style reward curricula and GACL-style task
