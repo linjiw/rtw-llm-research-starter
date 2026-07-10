@@ -1,6 +1,6 @@
 # Next Steps
 
-Updated: 2026-07-09 (~23:50 UTC, after the v0.13 verdict). This is the
+Updated: 2026-07-10 (after the v0.19 production handoff audit). This is the
 concrete execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`,
 results land in `EXPERIMENT_LEDGER.md`.
 
@@ -43,7 +43,11 @@ Current order, one additive iteration at a time:
 8. **NEXT:** capture and commit a homogeneous one-GPU CUDA environment lock and
    launch record before production seed 0. Production remains blocked here:
    this host has MPS but no CUDA. Artifact:
-   `docs/artifacts/v19_mps_preflight.json`.
+   `docs/artifacts/v19_mps_preflight.json`. The operator-safe stage order,
+   clean-checkout bootstrap, commit-before-compute rule, recovery policy, and
+   held-out access boundaries are frozen in
+   `docs/V19_CUDA_PRODUCTION_RUNBOOK.md`. Dry-run generation of the seed-0
+   train/dev/score commands and the protocol audit pass on this checkout.
 
 The externally running v13/OOD chain may finish as legacy evidence, but it is
 not a substitute for corrected-v2 seed confirmation. Do not launch the queued
