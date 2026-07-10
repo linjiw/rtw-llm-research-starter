@@ -59,3 +59,8 @@ stored prompts predate the current prompt functions. README/Makefile generation
 counts also do not match the committed file counts. Preserve these files for
 legacy reproduction only; they are not eligible for corrected-v2 experiments
 or a fresh final-test claim.
+
+The corrected successor is documented in
+`docs/COUNTDOWN_V2_DATASET_CARD.md`. Its tracked audit is
+`docs/artifacts/countdown_v2_audit.json`; it is eligible for new within-v2
+experiments, while its final-test split remains sealed and unreleased.

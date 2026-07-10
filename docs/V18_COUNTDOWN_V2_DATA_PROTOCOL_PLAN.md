@@ -1,7 +1,7 @@
 # v0.18: corrected, globally disjoint Countdown-v2 data protocol
 
-Created: 2026-07-10. Status: **source implementation complete and independently
-reviewed; clean pre-generation commit pending**. Human approval was granted to create a new versioned dataset, fix the
+Created: 2026-07-10. Status: **completed — ELIGIBLE; final test sealed and
+unreleased**. Human approval was granted to create a new versioned dataset, fix the
 generator defect, reserve a final test, lead the protocol decisions, and push
 the completed work. Legacy files under `data/countdown/` remain immutable.
 
@@ -186,3 +186,41 @@ descriptive/underpowered alone. `validation` is developmental;
 without forfeiting that label; `final_test_in_dist` remains technically blocked
 until the release contract is satisfied. Training-seed generalization remains
 limited by the number of new true end-to-end seeds.
+
+## Result
+
+Source implementation commit: `47ecc43`. The first real audit correctly
+rejected an operator-canonicalization mismatch in the independent auditor. No
+row was patched: the uncommitted output was deleted, the audit was fixed and
+reviewed in `cbde94b`, and the entire dataset was regenerated from that new clean
+source commit.
+
+Final manifest:
+
+- source commit: `cbde94b98650d0c5f8b587254c6cdbe9ac14031b`;
+- manifest core SHA-256:
+  `c1887c9d40d35f7e457e9ec3d88355ff4d5ee5621412ef0bad2e6b5a6abb7b67`;
+- 7,500 records and 7,500 globally unique loose semantic keys;
+- exact frozen split counts/quotas from this plan;
+- easy pool 1,050 tasks from 2,503 proposals; medium 2,725/2,792;
+  hard 2,725/2,728; both OOD pools 500/500;
+- final JSONL SHA-256:
+  `d4b9b23129ad5890deda38ba20ed0fb3c3f0f3d844f8d23a16756718d330acb8`.
+
+The independent tracked audit at
+`docs/artifacts/countdown_v2_audit.json` reports:
+
+- `status=ELIGIBLE`, `eligible_for_corrected_v2=true`, zero failures;
+- zero per-row schema/verifier/prompt/quota errors;
+- zero exact and zero loose overlap for every split pair;
+- byte-identical replay for every JSONL/ID artifact and the manifest payload;
+- all pinned legacy JSONL and frozen-ID hashes unchanged;
+- `final_test_released=false`.
+
+Validation: **194 tests passed** before generation, Ruff/compile/diff checks
+clean, and independent design/source/fix reviews cleared. No model was evaluated
+on `final_test_in_dist`; only deterministic generation and data audit read it.
+
+Verdict: **KEEP**. The data/provenance/statistics gates are closed. GPU remains
+paused until a separate v0.19 within-v2 baseline ladder is pre-registered,
+reviewed, and committed with pinned model revisions and true-seed roles.

@@ -15,8 +15,11 @@ the ledger and this program between sessions and improves the program itself.
 > audit completed with integrity FAIL (39 difficulty-count defects + cross-split
 > leakage), so legacy files are reproduction-only. v0.17 also withdrew pooled
 > pseudoreplicated p-values; raw legacy banks are absent, so repaired intervals
-> cannot be recomputed. The next action is a human-approved, globally disjoint
-> v2 data protocol. This override supersedes the older Gate-0/queue text below.
+> cannot be recomputed. The globally disjoint v2 data protocol is now complete:
+> 7,500 tasks, deterministic replay, audit ELIGIBLE, final test sealed. The next
+> action is a separately pre-registered complete within-v2 baseline reset; GPU
+> remains paused until that plan is reviewed and committed. This override
+> supersedes the older Gate-0/queue text below.
 
 ## 1. North-star goal
 

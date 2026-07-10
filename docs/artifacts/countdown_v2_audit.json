@@ -1,0 +1,263 @@
+{
+  "audit_sources": {
+    "scripts/19_audit_countdown_v2.py": {
+      "line_count": 34,
+      "sha256": "f0f5c7311778e85c00bd300b75586168e212780a55a7010cef2af41310da2771",
+      "size": 1121
+    },
+    "src/rtw_llm/countdown.py": {
+      "line_count": 542,
+      "sha256": "893f33a8c064cda8bc71f27f95df0786db46ac8ee63cd129651d49cc5836442c",
+      "size": 19783
+    },
+    "src/rtw_llm/countdown_v2_audit.py": {
+      "line_count": 550,
+      "sha256": "08b5de5ef8aad9133cc19a211cb358ee2170c55431c51a1a6b5239991408067b",
+      "size": 23676
+    },
+    "src/rtw_llm/prompts.py": {
+      "line_count": 63,
+      "sha256": "ba09bafbac68e642f529b34886277d77f312514b49e39fd58b063e89e80c6a0f",
+      "size": 2483
+    }
+  },
+  "deterministic_replay": {
+    "artifact_bytes_match": true,
+    "manifest_payload_matches": true,
+    "mismatched_artifacts": []
+  },
+  "git_head": "cbde94b98650d0c5f8b587254c6cdbe9ac14031b",
+  "legacy_artifacts": {
+    "data/countdown/test_in_dist.jsonl": {
+      "actual_sha256": "ef07376962cba6c50d2042d08ac24d23484b6dbd9deb16dd71ed6100bfb60ba2",
+      "expected_sha256": "ef07376962cba6c50d2042d08ac24d23484b6dbd9deb16dd71ed6100bfb60ba2"
+    },
+    "data/countdown/test_ood_division.jsonl": {
+      "actual_sha256": "8fe562970f10f1003432d67f5e6e50036e89567d24b642b4658afa0d4608e170",
+      "expected_sha256": "8fe562970f10f1003432d67f5e6e50036e89567d24b642b4658afa0d4608e170"
+    },
+    "data/countdown/test_ood_long.jsonl": {
+      "actual_sha256": "601d86bf2b90b0fa5b297540fa16b9a82c60b9017036bbaf44b885e233c6113d",
+      "expected_sha256": "601d86bf2b90b0fa5b297540fa16b9a82c60b9017036bbaf44b885e233c6113d"
+    },
+    "data/countdown/train.jsonl": {
+      "actual_sha256": "1324319ee6294e2b25a4220f7970715bfa63c8b41a704d298e0cb0a3cb708a2b",
+      "expected_sha256": "1324319ee6294e2b25a4220f7970715bfa63c8b41a704d298e0cb0a3cb708a2b"
+    },
+    "data/countdown/validation.jsonl": {
+      "actual_sha256": "bd5fa14e31ab5a3b664e51b62bc54b2040afd75685a606279c739f3800d2d81d",
+      "expected_sha256": "bd5fa14e31ab5a3b664e51b62bc54b2040afd75685a606279c739f3800d2d81d"
+    },
+    "outputs/v09_task_ids_test_in_dist_limit50.txt": {
+      "actual_sha256": "81421f6c0f0e1f10b14b9234e3e0bf3c85880d556476d27ff65df7baa991fa4d",
+      "expected_sha256": "81421f6c0f0e1f10b14b9234e3e0bf3c85880d556476d27ff65df7baa991fa4d"
+    },
+    "outputs/v09_task_ids_test_ood_division_limit50.txt": {
+      "actual_sha256": "fd8d3f41862de7ba0d527224286a40ef9772214c33baf71d2ce98378b3d5a7bd",
+      "expected_sha256": "fd8d3f41862de7ba0d527224286a40ef9772214c33baf71d2ce98378b3d5a7bd"
+    },
+    "outputs/v09_task_ids_test_ood_long_limit50.txt": {
+      "actual_sha256": "2fe61c942499a96eb51dc4df246507688dc192647697332b92673de034944715",
+      "expected_sha256": "2fe61c942499a96eb51dc4df246507688dc192647697332b92673de034944715"
+    },
+    "outputs/v09_task_ids_validation_limit50.txt": {
+      "actual_sha256": "6fc3f3ca2b67b43bcde1b67a23f270ce49419e2988147bafb671425c30202ad6",
+      "expected_sha256": "6fc3f3ca2b67b43bcde1b67a23f270ce49419e2988147bafb671425c30202ad6"
+    }
+  },
+  "manifest_raw": {
+    "line_count": 217,
+    "sha256": "551a7b5022238373e21a6114a6c6239491b872bf000aa3df90d77c3ba2d5ce5f",
+    "size": 6304
+  },
+  "manifest_source_commit": "cbde94b98650d0c5f8b587254c6cdbe9ac14031b",
+  "overlap_matrix": {
+    "final_test_in_dist__test_ood_division": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "final_test_in_dist__test_ood_long": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "test_in_dist__final_test_in_dist": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "test_in_dist__test_ood_division": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "test_in_dist__test_ood_long": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "test_ood_long__test_ood_division": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "train__final_test_in_dist": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "train__test_in_dist": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "train__test_ood_division": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "train__test_ood_long": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "train__validation": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "validation__final_test_in_dist": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "validation__test_in_dist": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "validation__test_ood_division": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    },
+    "validation__test_ood_long": {
+      "exact_shared_groups": 0,
+      "loose_shared_groups": 0
+    }
+  },
+  "protocol_id": "countdown-dataset-v2",
+  "schema_version": "countdown-v2-audit-v1",
+  "splits": {
+    "final_test_in_dist": {
+      "count": 500,
+      "difficulty_counts": {
+        "easy": 50,
+        "hard": 225,
+        "medium": 225
+      },
+      "error_count": 0,
+      "first_errors": [],
+      "ordered_ids_raw": {
+        "line_count": 500,
+        "sha256": "79c6f8866f1575e466e93a17848279a8e5b3a00ebe7e8fd0484b3c92087274b3",
+        "size": 17450
+      },
+      "raw": {
+        "line_count": 500,
+        "sha256": "d4b9b23129ad5890deda38ba20ed0fb3c3f0f3d844f8d23a16756718d330acb8",
+        "size": 1186362
+      }
+    },
+    "test_in_dist": {
+      "count": 500,
+      "difficulty_counts": {
+        "easy": 50,
+        "hard": 225,
+        "medium": 225
+      },
+      "error_count": 0,
+      "first_errors": [],
+      "ordered_ids_raw": {
+        "line_count": 500,
+        "sha256": "c3dd6c0b844e4081fdb0713979a86f722a6acfe12ecacba3b60e9d22d48c78c8",
+        "size": 14450
+      },
+      "raw": {
+        "line_count": 500,
+        "sha256": "20fa77679c0f98e05ac26243a54c0ad640f6df82ee98ccd7dace1a1bf30177bb",
+        "size": 1180444
+      }
+    },
+    "test_ood_division": {
+      "count": 500,
+      "difficulty_counts": {
+        "ood_division": 500
+      },
+      "error_count": 0,
+      "first_errors": [],
+      "ordered_ids_raw": {
+        "line_count": 500,
+        "sha256": "6198cee7cc1e0f3c5818ed18325ae0b352831ca7ef0ea16fdeb027f6e41e00f5",
+        "size": 20500
+      },
+      "raw": {
+        "line_count": 500,
+        "sha256": "a98660c803bece69a513465484cd21109fa593503730a90015b9173c5e35d20e",
+        "size": 1208132
+      }
+    },
+    "test_ood_long": {
+      "count": 500,
+      "difficulty_counts": {
+        "ood_long": 500
+      },
+      "error_count": 0,
+      "first_errors": [],
+      "ordered_ids_raw": {
+        "line_count": 500,
+        "sha256": "f6a2374bd2be2d4a1ebf12737190610126d84b94617d7804d373a79359622964",
+        "size": 16500
+      },
+      "raw": {
+        "line_count": 500,
+        "sha256": "c6b8a777b9c31589ee79d6d88d8c96d4257d0364279dc35ee21e0487d787eebe",
+        "size": 1209692
+      }
+    },
+    "train": {
+      "count": 5000,
+      "difficulty_counts": {
+        "easy": 900,
+        "hard": 2050,
+        "medium": 2050
+      },
+      "error_count": 0,
+      "first_errors": [],
+      "ordered_ids_raw": {
+        "line_count": 5000,
+        "sha256": "ddc62ec294d51d34f8b85cf15cb52f7833026f2b0049519021b12f9c78870410",
+        "size": 109100
+      },
+      "raw": {
+        "line_count": 5000,
+        "sha256": "f57b0c34d935cee8d67532b1f8622181ee7d9e8327118b1a39d4ad7125e14656",
+        "size": 11706543
+      }
+    },
+    "validation": {
+      "count": 500,
+      "difficulty_counts": {
+        "easy": 50,
+        "hard": 225,
+        "medium": 225
+      },
+      "error_count": 0,
+      "first_errors": [],
+      "ordered_ids_raw": {
+        "line_count": 500,
+        "sha256": "f21474f5f7a6fde6f4226d974f6295c5b23d18ddc634bc413de1a7d5a4c567ed",
+        "size": 13450
+      },
+      "raw": {
+        "line_count": 500,
+        "sha256": "0eb71cdd817e78a02743e4509cc45be7934cf0d773303e2865f3157fad1ae29a",
+        "size": 1178473
+      }
+    }
+  },
+  "verdict": {
+    "eligible_for_corrected_v2": true,
+    "failure_count": 0,
+    "failures": [],
+    "final_test_released": false,
+    "status": "ELIGIBLE"
+  }
+}

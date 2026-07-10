@@ -24,18 +24,23 @@ Current order, one additive iteration at a time:
    p-values~~ **DONE, KEEP (infra)** — 170 tests, independent review CLEAR.
    The tracked pooled p-values are labeled invalid; raw banks are absent, so
    legacy clustered intervals are unavailable.
-5. **BLOCKED ON HUMAN APPROVAL:** define a new globally disjoint Countdown-v2
-   dataset protocol, fix the leftover-node generator defect, and reserve an
-   untouched final test. Every compared arm must be regenerated under v2;
-   never mix legacy-v1 and corrected-v2 banks.
+5. ~~Define a new globally disjoint Countdown-v2 dataset protocol, fix the
+   leftover-node generator defect, and reserve an untouched final test~~
+   **DONE — AUDIT ELIGIBLE, KEEP**. 7,500 tasks, zero exact/loose overlap,
+   byte-identical replay, legacy hashes unchanged, final test sealed/unreleased.
+6. **NEXT:** pre-register and review the smallest complete within-v2 baseline
+   reset. Never mix legacy-v1 and v2 banks or interpret their difference as a
+   one-variable method effect.
 
 The externally running v13/OOD chain may finish as legacy evidence, but it is
 not a substitute for corrected-v2 seed confirmation. Do not launch the queued
 harness-shift or MicroCode base probe yet.
 
-Corrected-v2 requires a separate human-approved dataset protocol. Do not
-overwrite legacy files. No GPU launch is authorized until that protocol and
-its deterministic generator/verifier/card/tests are reviewed and committed.
+Corrected-v2 data are now available under `data/countdown_v2/`. No GPU launch is
+authorized until v0.19 freezes the within-v2 arm matrix, pinned model revision,
+true seed roles, token/step budgets, validation stopping rule, one-shot
+confirmation rule, and task-clustered analysis. The final test remains blocked
+by runner guards and has no release record.
 
 Everything below this gate is historical legacy-v1 planning and interpretation,
 not an active launch queue. In particular, this checkout does not contain the

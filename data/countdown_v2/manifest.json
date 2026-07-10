@@ -1,0 +1,217 @@
+{
+  "allocation_seed_offsets": {
+    "easy": 100,
+    "hard": 102,
+    "medium": 101
+  },
+  "artifacts": {
+    "final_test_in_dist.jsonl": {
+      "line_count": 500,
+      "sha256": "d4b9b23129ad5890deda38ba20ed0fb3c3f0f3d844f8d23a16756718d330acb8",
+      "size": 1186362
+    },
+    "task_ids/final_test_in_dist.txt": {
+      "line_count": 500,
+      "sha256": "79c6f8866f1575e466e93a17848279a8e5b3a00ebe7e8fd0484b3c92087274b3",
+      "size": 17450
+    },
+    "task_ids/test_in_dist.txt": {
+      "line_count": 500,
+      "sha256": "c3dd6c0b844e4081fdb0713979a86f722a6acfe12ecacba3b60e9d22d48c78c8",
+      "size": 14450
+    },
+    "task_ids/test_ood_division.txt": {
+      "line_count": 500,
+      "sha256": "6198cee7cc1e0f3c5818ed18325ae0b352831ca7ef0ea16fdeb027f6e41e00f5",
+      "size": 20500
+    },
+    "task_ids/test_ood_long.txt": {
+      "line_count": 500,
+      "sha256": "f6a2374bd2be2d4a1ebf12737190610126d84b94617d7804d373a79359622964",
+      "size": 16500
+    },
+    "task_ids/train.txt": {
+      "line_count": 5000,
+      "sha256": "ddc62ec294d51d34f8b85cf15cb52f7833026f2b0049519021b12f9c78870410",
+      "size": 109100
+    },
+    "task_ids/validation.txt": {
+      "line_count": 500,
+      "sha256": "f21474f5f7a6fde6f4226d974f6295c5b23d18ddc634bc413de1a7d5a4c567ed",
+      "size": 13450
+    },
+    "test_in_dist.jsonl": {
+      "line_count": 500,
+      "sha256": "20fa77679c0f98e05ac26243a54c0ad640f6df82ee98ccd7dace1a1bf30177bb",
+      "size": 1180444
+    },
+    "test_ood_division.jsonl": {
+      "line_count": 500,
+      "sha256": "a98660c803bece69a513465484cd21109fa593503730a90015b9173c5e35d20e",
+      "size": 1208132
+    },
+    "test_ood_long.jsonl": {
+      "line_count": 500,
+      "sha256": "c6b8a777b9c31589ee79d6d88d8c96d4257d0364279dc35ee21e0487d787eebe",
+      "size": 1209692
+    },
+    "train.jsonl": {
+      "line_count": 5000,
+      "sha256": "f57b0c34d935cee8d67532b1f8622181ee7d9e8327118b1a39d4ad7125e14656",
+      "size": 11706543
+    },
+    "validation.jsonl": {
+      "line_count": 500,
+      "sha256": "0eb71cdd817e78a02743e4509cc45be7934cf0d773303e2865f3157fad1ae29a",
+      "size": 1178473
+    }
+  },
+  "artifacts_exclude_manifest": true,
+  "base_seed": 20260710,
+  "easy_loose_key_capacity": 1264,
+  "final_test_policy": "NO_MODEL_EVALUATION_UNTIL_METHODS_CLAIMS_ANALYSIS_AND_STOPPING_RULES_ARE_FROZEN",
+  "final_test_protection": {
+    "canonical_row_digest_set_sha256": "1123eca3c2b731db9bd35ad6d4c1e4501a124343e3617a18fe6df02a33301b5e",
+    "id_set_sha256": "09540f6b18b8c1527b659d5fe82ca32a4838670bb1145659844b1a8cefae1598",
+    "jsonl_sha256": "d4b9b23129ad5890deda38ba20ed0fb3c3f0f3d844f8d23a16756718d330acb8",
+    "loose_key_set_sha256": "5b2c63b2435cbbd677fb56f9c0316681d1fda7e63088a9217ab9ca015fa2b0a9",
+    "ordered_ids_sha256": "79c6f8866f1575e466e93a17848279a8e5b3a00ebe7e8fd0484b3c92087274b3",
+    "row_count": 500,
+    "semantic_key_set_sha256": "a19410692990c5545a0a07a730ffd2467e4f9ffabdce9fbd2c0e33d6766069be"
+  },
+  "generation_order": [
+    "easy",
+    "medium",
+    "hard",
+    "ood_long",
+    "ood_division"
+  ],
+  "generation_stats": {
+    "global_loose_keys": 7500,
+    "max_proposals_per_pool": 250000,
+    "pool_stats": {
+      "easy": {
+        "duplicate_rejections": 1453,
+        "proposal_seed": 20260710,
+        "proposals": 2503,
+        "target": 1050
+      },
+      "hard": {
+        "duplicate_rejections": 3,
+        "proposal_seed": 20260712,
+        "proposals": 2728,
+        "target": 2725
+      },
+      "medium": {
+        "duplicate_rejections": 67,
+        "proposal_seed": 20260711,
+        "proposals": 2792,
+        "target": 2725
+      },
+      "ood_division": {
+        "duplicate_rejections": 0,
+        "proposal_seed": 20260714,
+        "proposals": 500,
+        "target": 500
+      },
+      "ood_long": {
+        "duplicate_rejections": 0,
+        "proposal_seed": 20260713,
+        "proposals": 500,
+        "target": 500
+      }
+    }
+  },
+  "generator_version": "countdown-v2-generator-v1",
+  "in_dist_slice_order": [
+    "train",
+    "validation",
+    "test_in_dist",
+    "final_test_in_dist"
+  ],
+  "manifest_core_sha256": "c1887c9d40d35f7e457e9ec3d88355ff4d5ee5621412ef0bad2e6b5a6abb7b67",
+  "max_proposals_per_pool": 250000,
+  "proposal_seed_offsets": {
+    "easy": 0,
+    "hard": 2,
+    "medium": 1,
+    "ood_division": 4,
+    "ood_long": 3
+  },
+  "protocol_id": "countdown-dataset-v2",
+  "runtime_contract": {
+    "ordering": "sha256_seed_domain_semantic_key_then_semantic_key",
+    "python_implementation": "cpython",
+    "python_major_minor": "3.11",
+    "rng": "random.Random",
+    "serialization": "utf8_sorted_keys_compact_json_one_lf_per_record"
+  },
+  "schema_version": "countdown-v2-manifest-v1",
+  "source_commit": "cbde94b98650d0c5f8b587254c6cdbe9ac14031b",
+  "source_records": {
+    "scripts/18_generate_countdown_v2.py": {
+      "line_count": 95,
+      "sha256": "3c3e6f153860987cdb53a5080636ce1152cce5ab87f16561cc56107be9cf5f9e",
+      "size": 2950
+    },
+    "src/rtw_llm/countdown.py": {
+      "line_count": 542,
+      "sha256": "893f33a8c064cda8bc71f27f95df0786db46ac8ee63cd129651d49cc5836442c",
+      "size": 19783
+    },
+    "src/rtw_llm/countdown_v2.py": {
+      "line_count": 419,
+      "sha256": "f11928016f5b3f1b60b54b95570f7b1285b1f3b52a33c782136b379dddf9eb2a",
+      "size": 15951
+    },
+    "src/rtw_llm/prompts.py": {
+      "line_count": 63,
+      "sha256": "ba09bafbac68e642f529b34886277d77f312514b49e39fd58b063e89e80c6a0f",
+      "size": 2483
+    }
+  },
+  "split_order": [
+    "train",
+    "validation",
+    "test_in_dist",
+    "final_test_in_dist",
+    "test_ood_long",
+    "test_ood_division"
+  ],
+  "split_order_seed_offsets": {
+    "final_test_in_dist": 203,
+    "test_in_dist": 202,
+    "test_ood_division": 205,
+    "test_ood_long": 204,
+    "train": 200,
+    "validation": 201
+  },
+  "split_quotas": {
+    "final_test_in_dist": {
+      "easy": 50,
+      "hard": 225,
+      "medium": 225
+    },
+    "test_in_dist": {
+      "easy": 50,
+      "hard": 225,
+      "medium": 225
+    },
+    "test_ood_division": {
+      "ood_division": 500
+    },
+    "test_ood_long": {
+      "ood_long": 500
+    },
+    "train": {
+      "easy": 900,
+      "hard": 2050,
+      "medium": 2050
+    },
+    "validation": {
+      "easy": 50,
+      "hard": 225,
+      "medium": 225
+    }
+  }
+}
