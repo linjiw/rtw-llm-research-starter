@@ -15,8 +15,10 @@ Current order, one additive iteration at a time:
 
 1. ~~Explicit SFT/GRPO seed contracts + pre-model seeding~~ **DONE, KEEP** —
    `docs/V14_SEED_SEMANTICS_PROTOCOL_PLAN.md`; 117 tests, Ruff clean.
-2. Write-once/content-addressed run intent + result manifests.
-3. Read-only dataset overlap/reproducibility audit; do not change frozen data.
+2. ~~Write-once/content-addressed run intent + result manifests~~ **DONE,
+   KEEP** — `docs/V15_RUN_PROVENANCE_MANIFEST_PLAN.md`; 131 tests, Ruff clean.
+3. **NEXT:** read-only dataset overlap/reproducibility audit; do not change
+   frozen data.
 4. Task-clustered statistical analysis replacing candidate-pseudoreplicated
    p-values.
 5. Only then define the smallest corrected-v2 rerun ladder. Every compared arm

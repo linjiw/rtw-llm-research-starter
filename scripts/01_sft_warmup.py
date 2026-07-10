@@ -10,9 +10,11 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
 
+from rtw_llm.provenance import build_run_identity, write_intent, write_result
 from rtw_llm.seed_protocol import (
     LEGACY_SEED_PROTOCOL,
     SEED_PROTOCOLS,
+    TRUE_SEED_PROTOCOL,
     apply_pre_model_seed,
     resolve_sft_seed_plan,
 )
@@ -22,6 +24,7 @@ from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwarg
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-0.5B-Instruct")
+    parser.add_argument("--model_revision", default=None)
     parser.add_argument("--train_path", default="data/countdown/train.jsonl")
     parser.add_argument("--eval_path", default=None)
     parser.add_argument("--output_dir", default="outputs/sft_qwen05b")
@@ -41,6 +44,7 @@ def main() -> None:
     )
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
+    parser.add_argument("--strict_provenance", action="store_true")
     parser.add_argument(
         "--completion_only_loss",
         action="store_true",
@@ -55,6 +59,8 @@ def main() -> None:
     args = parser.parse_args()
 
     seed_plan = resolve_sft_seed_plan(args.seed, args.seed_protocol)
+    if args.seed_protocol == TRUE_SEED_PROTOCOL and not args.strict_provenance:
+        raise ValueError("countdown-true-seeds-v2 requires --strict_provenance")
     apply_pre_model_seed(seed_plan)
     print(f"Resolved seed plan: {seed_plan}")
 
@@ -110,9 +116,40 @@ def main() -> None:
     }
     if args.completion_only_loss:
         config_kwargs["completion_only_loss"] = True
+    if args.model_revision:
+        config_kwargs["model_init_kwargs"] = {
+            "revision": args.model_revision,
+            "trust_remote_code": True,
+        }
     set_first_supported_kwarg(SFTConfig, config_kwargs, ["max_seq_length", "max_length"], 1024)
     train_args = SFTConfig(**supported_config_kwargs(SFTConfig, config_kwargs))
 
+    output_dir = Path(args.output_dir)
+    if args.strict_provenance:
+        input_files = {"train": args.train_path}
+        if args.eval_path:
+            input_files["eval"] = args.eval_path
+        identity = build_run_identity(
+            run_kind="sft",
+            requested_args=vars(args),
+            resolved_config=train_args.to_dict(),
+            seed_roles=seed_plan,
+            input_files=input_files,
+            model_name=args.model_name,
+            repo_root=Path(__file__).resolve().parents[1],
+            model_revision=args.model_revision,
+        )
+        write_intent(output_dir, identity)
+
+    processing_class = None
+    if args.model_revision:
+        from transformers import AutoTokenizer
+
+        processing_class = AutoTokenizer.from_pretrained(
+            args.model_name,
+            revision=args.model_revision,
+            trust_remote_code=True,
+        )
     trainer = SFTTrainer(
         model=args.model_name,
         args=train_args,
@@ -120,9 +157,20 @@ def main() -> None:
         eval_dataset=eval_ds,
         formatting_func=formatting_func,
         peft_config=peft_config,
+        processing_class=processing_class,
     )
     trainer.train()
     trainer.save_model(args.output_dir)
+    if args.strict_provenance:
+        write_result(
+            output_dir,
+            artifact_paths={
+                "adapter_config": output_dir / "adapter_config.json",
+                "adapter_weights": output_dir / "adapter_model.safetensors",
+                "tokenizer_config": output_dir / "tokenizer_config.json",
+                "training_args": output_dir / "training_args.bin",
+            },
+        )
 
 
 if __name__ == "__main__":

@@ -74,6 +74,7 @@ class HFEngine:
         self,
         model_name: str,
         adapter_path: str | None = None,
+        model_revision: str | None = None,
         device: str = "auto",
         gen_mode: str = "loop",
     ):
@@ -104,7 +105,13 @@ class HFEngine:
         if use_cuda:
             model_kwargs["device_map"] = "auto"
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=True,
+            revision=model_revision,
+        )
+        if model_revision:
+            model_kwargs["revision"] = model_revision
         self.model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
         if adapter_path:
             from peft import PeftModel

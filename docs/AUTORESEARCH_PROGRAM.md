@@ -10,7 +10,7 @@ the ledger and this program between sessions and improves the program itself.
 > GRPO “seeds” did not vary `GRPOConfig.seed` and fresh-LoRA initialization was
 > not pre-seeded. Existing artifacts are `countdown-legacy-v1`; their seed-level
 > uncertainty is descriptive only. Pause new GPU work. The active queue is now:
-> explicit seed contract (done) → immutable manifests → read-only dataset audit
+> explicit seed contract (done) → manifests (done) → read-only dataset audit
 > → task-clustered statistics → corrected-v2 rerun design. This override
 > supersedes the older Gate-0/queue text below until those four gates close.
 

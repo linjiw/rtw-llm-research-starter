@@ -11,10 +11,12 @@ from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
 from rtw_llm.curriculum import CurriculumConfig, CurriculumController, CurriculumSampler
+from rtw_llm.provenance import build_run_identity, write_intent, write_result
 from rtw_llm.rewards import RTWRewardManager
 from rtw_llm.seed_protocol import (
     LEGACY_SEED_PROTOCOL,
     SEED_PROTOCOLS,
+    TRUE_SEED_PROTOCOL,
     apply_pre_model_seed,
     resolve_grpo_seed_plan,
 )
@@ -42,6 +44,7 @@ def plan_model_init(init_adapter_path: str | None, use_lora: bool) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-0.5B-Instruct")
+    parser.add_argument("--model_revision", default=None)
     parser.add_argument("--train_path", default="data/countdown/train.jsonl")
     parser.add_argument("--eval_path", default="data/countdown/validation.jsonl")
     parser.add_argument("--output_dir", default="outputs/grpo_rtw_qwen05b")
@@ -95,6 +98,7 @@ def main() -> None:
     parser.add_argument("--prompt_field", default="prompt")
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
+    parser.add_argument("--strict_provenance", action="store_true")
     parser.add_argument(
         "--init_adapter_path",
         default=None,
@@ -113,6 +117,8 @@ def main() -> None:
         trainer_seed=args.trainer_seed,
         protocol_id=args.seed_protocol,
     )
+    if args.seed_protocol == TRUE_SEED_PROTOCOL and not args.strict_provenance:
+        raise ValueError("countdown-true-seeds-v2 requires --strict_provenance")
     apply_pre_model_seed(seed_plan)
     print(f"Resolved seed plan: {seed_plan}")
 
@@ -126,6 +132,59 @@ def main() -> None:
     if args.prompt_field != "prompt":
         train_ds = train_ds.map(lambda x: {"prompt": x[args.prompt_field]})
         eval_ds = eval_ds.map(lambda x: {"prompt": x[args.prompt_field]})
+
+    use_cuda = torch.cuda.is_available()
+    config_kwargs = {
+        # Pin the GRPO loss dynamics to TRL 1.7.0's resolved defaults so future
+        # TRL bumps cannot silently change training behavior between ladder
+        # runs. Note these differ from the archive-era TRL that trained the
+        # v0.9B checkpoints (which used a KL penalty and different loss/scaling
+        # defaults) — see the Gate 0 report.
+        "loss_type": "dapo",
+        "scale_rewards": "group",
+        "beta": 0.0,
+        "output_dir": str(output_dir),
+        "max_steps": args.max_steps,
+        "learning_rate": args.learning_rate,
+        "per_device_train_batch_size": args.batch_size,
+        "gradient_accumulation_steps": args.grad_accum,
+        "num_generations": args.num_generations,
+        "max_completion_length": args.max_completion_length,
+        "logging_steps": 10,
+        "save_steps": 100,
+        "bf16": use_cuda,
+        "fp16": False,
+        "optim": "adamw_torch_fused" if use_cuda else "adamw_torch",
+        "report_to": args.report_to,
+        "run_name": output_dir.name,
+        "trust_remote_code": True,
+        "seed": int(seed_plan["trainer_seed"]),
+    }
+    if args.model_revision:
+        config_kwargs["model_init_kwargs"] = {
+            "revision": args.model_revision,
+            "trust_remote_code": True,
+        }
+    set_first_supported_kwarg(
+        GRPOConfig,
+        config_kwargs,
+        ["max_prompt_length", "max_length"],
+        args.max_prompt_length,
+    )
+    resolved_config_kwargs = supported_config_kwargs(GRPOConfig, config_kwargs)
+    if args.strict_provenance:
+        identity = build_run_identity(
+            run_kind="grpo",
+            requested_args=vars(args),
+            resolved_config=resolved_config_kwargs,
+            seed_roles=seed_plan,
+            input_files={"train": args.train_path, "eval": args.eval_path},
+            model_name=args.model_name,
+            adapter_path=args.init_adapter_path,
+            repo_root=Path(__file__).resolve().parents[1],
+            model_revision=args.model_revision,
+        )
+        write_intent(output_dir, identity)
 
     teacher = RTWTeacher(
         TeacherConfig(
@@ -166,7 +225,10 @@ def main() -> None:
         # device_map="auto" defaults) TRL uses for the fresh-LoRA baseline, so the
         # ONLY difference vs C0 is the LoRA init (SFT-warmed vs zero), not the base
         # load dtype/device_map (v0.13 diff-review F1).
-        base = create_model_from_path(args.model_name, trust_remote_code=True)
+        model_init_kwargs = {"trust_remote_code": True}
+        if args.model_revision:
+            model_init_kwargs["revision"] = args.model_revision
+        base = create_model_from_path(args.model_name, **model_init_kwargs)
         model_arg = PeftModel.from_pretrained(
             base, init_plan["adapter_path"], is_trainable=True
         )
@@ -180,40 +242,7 @@ def main() -> None:
             target_modules="all-linear",
         )
 
-    use_cuda = torch.cuda.is_available()
-    config_kwargs = {
-        # Pin the GRPO loss dynamics to TRL 1.7.0's resolved defaults so future
-        # TRL bumps cannot silently change training behavior between ladder
-        # runs. Note these differ from the archive-era TRL that trained the
-        # v0.9B checkpoints (which used a KL penalty and different loss/scaling
-        # defaults) — see the Gate 0 report.
-        "loss_type": "dapo",
-        "scale_rewards": "group",
-        "beta": 0.0,
-        "output_dir": str(output_dir),
-        "max_steps": args.max_steps,
-        "learning_rate": args.learning_rate,
-        "per_device_train_batch_size": args.batch_size,
-        "gradient_accumulation_steps": args.grad_accum,
-        "num_generations": args.num_generations,
-        "max_completion_length": args.max_completion_length,
-        "logging_steps": 10,
-        "save_steps": 100,
-        "bf16": use_cuda,
-        "fp16": False,
-        "optim": "adamw_torch_fused" if use_cuda else "adamw_torch",
-        "report_to": args.report_to,
-        "run_name": output_dir.name,
-        "trust_remote_code": True,
-        "seed": int(seed_plan["trainer_seed"]),
-    }
-    set_first_supported_kwarg(
-        GRPOConfig,
-        config_kwargs,
-        ["max_prompt_length", "max_length"],
-        args.max_prompt_length,
-    )
-    train_args = GRPOConfig(**supported_config_kwargs(GRPOConfig, config_kwargs))
+    train_args = GRPOConfig(**resolved_config_kwargs)
     if int(train_args.seed) != int(seed_plan["trainer_seed"]):
         raise RuntimeError(
             "Resolved GRPOConfig seed does not match the requested trainer seed: "
@@ -269,6 +298,17 @@ def main() -> None:
 
         trainer_cls = CurriculumGRPOTrainer
 
+    processing_class = None
+    if args.model_revision:
+        from transformers import AutoTokenizer
+
+        processing_class = AutoTokenizer.from_pretrained(
+            args.model_name,
+            revision=args.model_revision,
+            trust_remote_code=True,
+            truncation_side="left",
+            padding_side="left",
+        )
     trainer = trainer_cls(
         model=model_arg,
         reward_funcs=reward_manager,
@@ -276,9 +316,22 @@ def main() -> None:
         train_dataset=train_ds,
         eval_dataset=eval_ds,
         peft_config=peft_config,
+        processing_class=processing_class,
     )
     trainer.train()
     trainer.save_model(str(output_dir))
+    if args.strict_provenance:
+        artifacts = {
+            "adapter_config": output_dir / "adapter_config.json",
+            "adapter_weights": output_dir / "adapter_model.safetensors",
+            "reward_components": output_dir / "reward_components.jsonl",
+            "teacher_weights": output_dir / "teacher_weights.jsonl",
+            "tokenizer_config": output_dir / "tokenizer_config.json",
+            "training_args": output_dir / "training_args.bin",
+        }
+        if curriculum is not None:
+            artifacts["curriculum_state"] = output_dir / "curriculum_state.jsonl"
+        write_result(output_dir, artifact_paths=artifacts)
 
 
 if __name__ == "__main__":
