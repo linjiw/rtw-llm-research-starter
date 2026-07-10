@@ -11,6 +11,7 @@ from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
 from rtw_llm.curriculum import CurriculumConfig, CurriculumController, CurriculumSampler
+from rtw_llm.data_access import assert_countdown_data_access
 from rtw_llm.provenance import build_run_identity, write_intent, write_result
 from rtw_llm.rewards import RTWRewardManager
 from rtw_llm.seed_protocol import (
@@ -112,6 +113,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    repo_root = Path(__file__).resolve().parents[1]
+    assert_countdown_data_access(
+        args.train_path, purpose="training", runner="02_grpo_train", repo_root=repo_root
+    )
+    assert_countdown_data_access(
+        args.eval_path,
+        purpose="training_eval",
+        runner="02_grpo_train",
+        repo_root=repo_root,
+    )
+
     seed_plan = resolve_grpo_seed_plan(
         teacher_seed=args.seed,
         trainer_seed=args.trainer_seed,
@@ -181,7 +193,7 @@ def main() -> None:
             input_files={"train": args.train_path, "eval": args.eval_path},
             model_name=args.model_name,
             adapter_path=args.init_adapter_path,
-            repo_root=Path(__file__).resolve().parents[1],
+            repo_root=repo_root,
             model_revision=args.model_revision,
         )
         write_intent(output_dir, identity)

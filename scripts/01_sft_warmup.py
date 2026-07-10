@@ -10,6 +10,7 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
 
+from rtw_llm.data_access import assert_countdown_data_access
 from rtw_llm.provenance import build_run_identity, write_intent, write_result
 from rtw_llm.seed_protocol import (
     LEGACY_SEED_PROTOCOL,
@@ -57,6 +58,18 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    repo_root = Path(__file__).resolve().parents[1]
+    assert_countdown_data_access(
+        args.train_path, purpose="training", runner="01_sft_warmup", repo_root=repo_root
+    )
+    if args.eval_path:
+        assert_countdown_data_access(
+            args.eval_path,
+            purpose="training_eval",
+            runner="01_sft_warmup",
+            repo_root=repo_root,
+        )
 
     seed_plan = resolve_sft_seed_plan(args.seed, args.seed_protocol)
     if args.seed_protocol == TRUE_SEED_PROTOCOL and not args.strict_provenance:
@@ -136,7 +149,7 @@ def main() -> None:
             seed_roles=seed_plan,
             input_files=input_files,
             model_name=args.model_name,
-            repo_root=Path(__file__).resolve().parents[1],
+            repo_root=repo_root,
             model_revision=args.model_revision,
         )
         write_intent(output_dir, identity)

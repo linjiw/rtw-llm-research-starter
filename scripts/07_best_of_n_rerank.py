@@ -13,6 +13,7 @@ from typing import Any
 import pandas as pd
 from tqdm import tqdm
 
+from rtw_llm.data_access import assert_countdown_data_access
 from rtw_llm.data import read_jsonl, write_jsonl
 from rtw_llm.engine import GenerationConfigLite, HFEngine, VLLMEngine
 from rtw_llm.provenance import (
@@ -278,6 +279,7 @@ def write_run_config(
         "device": args.device,
         "hf_gen_mode": args.hf_gen_mode,
         "effective_generation_config": effective_generation_config,
+        "final_test_release_record": args.final_test_release_record,
     }
     (output_dir / "run_config.json").write_text(json.dumps(config, indent=2) + "\n")
 
@@ -322,12 +324,25 @@ def main() -> None:
     parser.add_argument("--split", default=None)
     parser.add_argument("--skip_if_complete", action="store_true")
     parser.add_argument("--strict_provenance", action="store_true")
+    parser.add_argument("--final_test_release_record", default=None)
     args = parser.parse_args()
 
+    if args.final_test_release_record and not args.strict_provenance:
+        raise ValueError("Released final-test best-of-N requires --strict_provenance")
+    if args.final_test_release_record and (args.limit is not None or args.task_ids_file):
+        raise ValueError("Released final-test best-of-N forbids --limit and --task_ids_file")
     if args.training_protocol == TRUE_SEED_PROTOCOL and not args.strict_provenance:
         raise ValueError("countdown-true-seeds-v2 evaluation requires --strict_provenance")
     if args.strict_provenance and args.engine != "hf":
         raise ValueError("Strict provenance currently supports only the hf engine")
+    repo_root = Path(__file__).resolve().parents[1]
+    assert_countdown_data_access(
+        args.data_path,
+        purpose="model_eval",
+        runner="07_best_of_n_rerank",
+        release_record=args.final_test_release_record,
+        repo_root=repo_root,
+    )
 
     random.seed(args.seed)
     try:
@@ -372,6 +387,8 @@ def main() -> None:
         input_files = {"data": args.data_path}
         if args.task_ids_file:
             input_files["ordered_task_ids"] = args.task_ids_file
+        if args.final_test_release_record:
+            input_files["final_test_release"] = args.final_test_release_record
         provenance_identity = build_run_identity(
             run_kind="best_of_n",
             requested_args=vars(args),
@@ -391,7 +408,7 @@ def main() -> None:
             input_files=input_files,
             model_name=args.model_name,
             adapter_path=args.adapter_path,
-            repo_root=Path(__file__).resolve().parents[1],
+            repo_root=repo_root,
             model_revision=args.model_revision,
         )
     if args.skip_if_complete:

@@ -20,6 +20,7 @@ CONTENT_ADDRESSED_ARG_KEYS = {
     "adapter_path",
     "data_path",
     "eval_path",
+    "final_test_release_record",
     "init_adapter_path",
     "model_name",
     "task_ids_file",
