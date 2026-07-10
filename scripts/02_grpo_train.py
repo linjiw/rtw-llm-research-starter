@@ -12,6 +12,12 @@ from trl import GRPOConfig, GRPOTrainer
 
 from rtw_llm.curriculum import CurriculumConfig, CurriculumController, CurriculumSampler
 from rtw_llm.rewards import RTWRewardManager
+from rtw_llm.seed_protocol import (
+    LEGACY_SEED_PROTOCOL,
+    SEED_PROTOCOLS,
+    apply_pre_model_seed,
+    resolve_grpo_seed_plan,
+)
 from rtw_llm.teacher import RTWTeacher, TeacherConfig
 from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwargs
 
@@ -59,7 +65,28 @@ def main() -> None:
     parser.add_argument("--num_generations", type=int, default=4)
     parser.add_argument("--max_prompt_length", type=int, default=768)
     parser.add_argument("--max_completion_length", type=int, default=256)
-    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help=(
+            "Teacher/controller seed. Historical runs varied this value while TRL "
+            "kept trainer seed 42; use --seed_protocol countdown-true-seeds-v2 "
+            "with --trainer_seed N for future true-seed experiments."
+        ),
+    )
+    parser.add_argument(
+        "--trainer_seed",
+        type=int,
+        default=42,
+        help="Explicit TRL/GRPO seed; defaults to 42 for archived-protocol compatibility.",
+    )
+    parser.add_argument(
+        "--seed_protocol",
+        choices=SEED_PROTOCOLS,
+        default=LEGACY_SEED_PROTOCOL,
+        help="Fail-closed seed-role contract; never compare banks across protocol ids.",
+    )
     parser.add_argument(
         "--task_curriculum",
         choices=["uniform", "manual", "adaptive"],
@@ -81,6 +108,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    seed_plan = resolve_grpo_seed_plan(
+        teacher_seed=args.seed,
+        trainer_seed=args.trainer_seed,
+        protocol_id=args.seed_protocol,
+    )
+    apply_pre_model_seed(seed_plan)
+    print(f"Resolved seed plan: {seed_plan}")
+
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,7 +130,7 @@ def main() -> None:
     teacher = RTWTeacher(
         TeacherConfig(
             strategy=args.reward_strategy,
-            seed=args.seed,
+            seed=int(seed_plan["teacher_seed"]),
             log_path=str(output_dir / "teacher_weights.jsonl"),
         )
     )
@@ -170,6 +205,7 @@ def main() -> None:
         "report_to": args.report_to,
         "run_name": output_dir.name,
         "trust_remote_code": True,
+        "seed": int(seed_plan["trainer_seed"]),
     }
     set_first_supported_kwarg(
         GRPOConfig,
@@ -178,6 +214,11 @@ def main() -> None:
         args.max_prompt_length,
     )
     train_args = GRPOConfig(**supported_config_kwargs(GRPOConfig, config_kwargs))
+    if int(train_args.seed) != int(seed_plan["trainer_seed"]):
+        raise RuntimeError(
+            "Resolved GRPOConfig seed does not match the requested trainer seed: "
+            f"resolved={train_args.seed}, requested={seed_plan['trainer_seed']}"
+        )
 
     trainer_cls = GRPOTrainer
     if curriculum is not None:

@@ -42,6 +42,7 @@ experiment rounds as needed.
 | v0.10 | [V10_TASK_CURRICULUM_PLAN.md](V10_TASK_CURRICULUM_PLAN.md) | GACL task curriculum — DISCARD (mediator saturated); strike one |
 | v0.12 | [V12_NUMBER_LEGALITY_REWARD_PLAN.md](V12_NUMBER_LEGALITY_REWARD_PLAN.md) | legality-weight envelope — DISCARD, strike two; retired reward-shaping-for-legality |
 | v0.13 | [V13_SFT_WARMUP_LEGALITY_PLAN.md](V13_SFT_WARMUP_LEGALITY_PLAN.md) | SFT warmup (capability lever) — running; strong early signal (both walls moved at train time) |
+| v0.14 | [V14_SEED_SEMANTICS_PROTOCOL_PLAN.md](V14_SEED_SEMANTICS_PROTOCOL_PLAN.md) | protocol gate — explicit legacy-v1/corrected-v2 SFT+GRPO seed semantics; legacy “3-seed” claims downgraded to stochastic repeats |
 
 ## Snapshots (dated, superseded by operating docs)
 

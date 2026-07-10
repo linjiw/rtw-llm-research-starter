@@ -10,6 +10,12 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
 
+from rtw_llm.seed_protocol import (
+    LEGACY_SEED_PROTOCOL,
+    SEED_PROTOCOLS,
+    apply_pre_model_seed,
+    resolve_sft_seed_plan,
+)
 from rtw_llm.trl_compat import set_first_supported_kwarg, supported_config_kwargs
 
 
@@ -24,6 +30,15 @@ def main() -> None:
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--seed_protocol",
+        choices=SEED_PROTOCOLS,
+        default=LEGACY_SEED_PROTOCOL,
+        help=(
+            "Legacy preserves pre-trainer LoRA RNG behavior; corrected-v2 globally "
+            "seeds before model/adapter construction."
+        ),
+    )
     parser.add_argument("--report_to", default="wandb")
     parser.add_argument("--use_lora", action="store_true", default=True)
     parser.add_argument(
@@ -38,6 +53,10 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+
+    seed_plan = resolve_sft_seed_plan(args.seed, args.seed_protocol)
+    apply_pre_model_seed(seed_plan)
+    print(f"Resolved seed plan: {seed_plan}")
 
     ds = load_dataset("json", data_files=args.train_path, split="train")
     eval_ds = load_dataset("json", data_files=args.eval_path, split="train") if args.eval_path else None
@@ -86,7 +105,7 @@ def main() -> None:
         "optim": "adamw_torch_fused" if use_cuda else "adamw_torch",
         "report_to": args.report_to,
         "run_name": Path(args.output_dir).name,
-        "seed": args.seed,
+        "seed": int(seed_plan["trainer_seed"]),
         "trust_remote_code": True,
     }
     if args.completion_only_loss:

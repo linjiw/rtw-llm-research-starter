@@ -4,6 +4,17 @@ One row per experiment iteration under `docs/AUTORESEARCH_PROGRAM.md`.
 Primary metric: paired `reranked_exact@8` on frozen validation task IDs.
 Guardrails: test_in_dist exact, selected_valid, number F1, reward-hack rate, cost.
 
+> **Protocol correction (v0.14 seed gate, 2026-07-09):** every existing
+> Countdown artifact is `countdown-legacy-v1`. In GRPO, the run label
+> `--seed N` reached the teacher but not `GRPOConfig`; the trainer loop and
+> curriculum used TRL's default 42, while fresh-LoRA initialization occurred
+> before TRL applied that seed and was not controlled. Existing “3-seed”
+> Stable/static rows are therefore legacy stochastic repeats, not true
+> end-to-end training seeds. Their observed means and paired task counts remain
+> descriptive, but cross-training-seed uncertainty and population claims are
+> withdrawn pending corrected-v2 reruns. v0.13 seed expansion varies the SFT
+> training-loop seed but retains GRPO 42; label it accordingly.
+
 Historical results (v0.5–v0.9B, pre-ledger) are archived in `docs/V0*.md` and
 summarized in `docs/CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md`. Current
 best method: **Stable-RTW (`adaptive_stable`) + verifier-guided best-of-N**.
@@ -24,3 +35,4 @@ best method: **Stable-RTW (`adaptive_stable`) + verifier-guided best-of-N**.
 | framework-bug | 2026-07-09 | Framework findings surfaced by the Paper-2 scoping (verified in code) | (a) `CurriculumController.competence()` (curriculum.py:99-106) climbs on binary-derived `ema_exact` in the exact phase → re-inherits Countdown's bimodality; part of why v0.10 curriculum was inert. (b) `RTWRewardManager.__call__` (rewards.py:125-139) hardcodes Countdown fields (numbers/target/allowed_ops) + imports from `.countdown` → not task-agnostic | — (design/code analysis) | insight (must-fix for Paper 2; reinterprets v0.10) | **FIXED in `f53cb33`**: `gate_key`/`graded_key` config channels on the controller; `scorer` + `example_fields` dispatch on the reward manager; Countdown defaults byte-identical; +2 tests (82 total) |
 | v13-verify | 2026-07-09 | Independent adversarial re-check of the v0.13 KEEP (memorization is the threat: SFT trained on gold) | oracle@8 on HELD-OUT (non-(numbers,target)-overlap) tasks = 13/41 val, 19/44 test — vs stable ~1/41 floor; overlap tasks (9/9, 6/6) fully solved but a minority; verbatim-gold only 9/77 exact cands (val), 5/85 (test) → ~90% of exact solutions are NOVEL expressions | — (CPU, no GPU) | insight (KEEP confirmed robust) | SFT taught legal-expression CONSTRUCTION, not memorized answers; the ~5× lift is genuine capability transfer on unseen tasks. Verdict stands |
 | postsft-precondition | 2026-07-09 | Does the post-SFT regime revive adaptivity on Countdown? (check before proposing GPU) | SFT smoothed the LEGALITY gradient (valid 0.99/0.88/0.73 vs cold 0.53/0.43/0.16) BUT exact still bimodal (0.49/0.07/0.07, value-search wall intact) and group_reward_std NOT densified (0.205 vs 0.245) | — (CPU, no GPU) | insight → DO NOT run adaptive stack on post-SFT Countdown | 2 of 3 adaptivity preconditions still unmet → would reproduce v0.10/v0.12. North-star home for the thesis stays Paper 2 (MicroCode, designed for dense variance). One deferred narrow probe: legality-phase curriculum on medium/hard legality. `docs/POST_SFT_ADAPTIVITY_PRECONDITION_20260709.md` |
+| v0.14-seed-gate | 2026-07-09 | Make training seed roles explicit without changing any archived behavior or frozen evaluation component | Added fail-closed `countdown-legacy-v1` vs `countdown-true-seeds-v2` contracts for SFT/GRPO; corrected-v2 pre-seeds before model/LoRA construction and passes the seed into TRL config; legacy retains trainer-loop 42 and historical pre-trainer RNG behavior | 117 tests pass; Ruff clean; independent design + diff review cleared after catching TRL's post-LoRA `set_seed` ordering | **KEEP (infra); GPU PAUSE remains** | Corrected-v2 comparisons must rerun every arm; manifests, dataset audit, and cluster-aware stats are the next separate additive gates. `docs/V14_SEED_SEMANTICS_PROTOCOL_PLAN.md` |

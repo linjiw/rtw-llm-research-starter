@@ -4,6 +4,28 @@ Updated: 2026-07-09 (~23:50 UTC, after the v0.13 verdict). This is the
 concrete execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`,
 results land in `EXPERIMENT_LEDGER.md`.
 
+## PROTOCOL GATE (supersedes the GPU queue below)
+
+The v0.14 audit found that historical `--seed N` GRPO runs varied the teacher
+seed but left the trainer loop at TRL's default 42; fresh-LoRA initialization
+also occurred before TRL applied that seed. Existing artifacts are now labeled
+`countdown-legacy-v1`, not true multi-seed evidence.
+
+Current order, one additive iteration at a time:
+
+1. ~~Explicit SFT/GRPO seed contracts + pre-model seeding~~ **DONE, KEEP** —
+   `docs/V14_SEED_SEMANTICS_PROTOCOL_PLAN.md`; 117 tests, Ruff clean.
+2. Write-once/content-addressed run intent + result manifests.
+3. Read-only dataset overlap/reproducibility audit; do not change frozen data.
+4. Task-clustered statistical analysis replacing candidate-pseudoreplicated
+   p-values.
+5. Only then define the smallest corrected-v2 rerun ladder. Every compared arm
+   must be regenerated under v2; never mix legacy-v1 and corrected-v2 banks.
+
+The externally running v13/OOD chain may finish as legacy evidence, but it is
+not a substitute for corrected-v2 seed confirmation. Do not launch the queued
+harness-shift or MicroCode base probe yet.
+
 ## HEADLINE: v0.13 SFT-warmup → KEEP, decisively (ledger `v0.13-sft`)
 
 Both splits, seed 0, frozen protocol, scored by the pre-registered

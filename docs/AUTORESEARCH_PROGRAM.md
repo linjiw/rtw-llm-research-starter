@@ -6,6 +6,14 @@ iterations in this repo, adapted from the karpathy/autoresearch pattern
 An agent (Claude Code) executes iterations of the loop below; a human reviews
 the ledger and this program between sessions and improves the program itself.
 
+> **2026-07-09 protocol-gate override:** v0.14 established that historical
+> GRPO “seeds” did not vary `GRPOConfig.seed` and fresh-LoRA initialization was
+> not pre-seeded. Existing artifacts are `countdown-legacy-v1`; their seed-level
+> uncertainty is descriptive only. Pause new GPU work. The active queue is now:
+> explicit seed contract (done) → immutable manifests → read-only dataset audit
+> → task-clustered statistics → corrected-v2 rerun design. This override
+> supersedes the older Gate-0/queue text below until those four gates close.
+
 ## 1. North-star goal
 
 > Show that adaptive curricula — RTW-style reward curricula and GACL-style task
