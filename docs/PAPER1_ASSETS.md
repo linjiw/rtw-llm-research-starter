@@ -6,7 +6,7 @@ committed score JSONs + candidate banks. Claims per
 
 ## C1 — Inference-time selection saturates
 
-reranked@8 == oracle@8 in 24/24 banks (selection saturated)
+reranked@8 == oracle@8 in 28/28 banks (selection saturated)
 
 | bank | n_tasks | reranked@8 | oracle@8 | gap |
 |---|---|---|---|---|
@@ -32,6 +32,10 @@ reranked@8 == oracle@8 in 24/24 banks (selection saturated)
 | v12legality_seed0_validation_limit50_n8 | 50 | 6 | 6 | 0 |
 | v13sft_seed0_test_in_dist_limit50_n8 | 50 | 25 | 25 | 0 |
 | v13sft_seed0_validation_limit50_n8 | 50 | 22 | 22 | 0 |
+| v13sft_seed1_test_in_dist_limit50_n8 | 50 | 21 | 21 | 0 |
+| v13sft_seed1_validation_limit50_n8 | 50 | 18 | 18 | 0 |
+| v13sft_seed2_test_in_dist_limit50_n8 | 50 | 26 | 26 | 0 |
+| v13sft_seed2_validation_limit50_n8 | 50 | 21 | 21 | 0 |
 | v13sftonly_seed0_test_in_dist_limit50_n8 | 50 | 16 | 16 | 0 |
 | v13sftonly_seed0_validation_limit50_n8 | 50 | 11 | 11 | 0 |
 
@@ -50,7 +54,7 @@ reranked@8 == oracle@8 in 24/24 banks (selection saturated)
 
 ## C3 — SFT capability lever moves both walls (~5×)
 
-seeds present in banks: [0]
+seeds present in banks: [0, 1, 2]
 
 ```
 {
@@ -62,6 +66,16 @@ seeds present in banks: [0]
       "0": {
         "oracle@8": 22,
         "reranked@8": 22,
+        "n_tasks": 50
+      },
+      "1": {
+        "oracle@8": 18,
+        "reranked@8": 18,
+        "n_tasks": 50
+      },
+      "2": {
+        "oracle@8": 21,
+        "reranked@8": 21,
         "n_tasks": 50
       }
     },
@@ -81,6 +95,16 @@ seeds present in banks: [0]
         "oracle@8": 25,
         "reranked@8": 25,
         "n_tasks": 50
+      },
+      "1": {
+        "oracle@8": 21,
+        "reranked@8": 21,
+        "n_tasks": 50
+      },
+      "2": {
+        "oracle@8": 26,
+        "reranked@8": 26,
+        "n_tasks": 50
       }
     },
     "stable_oracle@8_by_seed": [
@@ -89,7 +113,9 @@ seeds present in banks: [0]
       8
     ],
     "stable_oracle@8_mean": 5.33
-  }
+  },
+  "seeds012_validation_present": true,
+  "seeds012_test_in_dist_present": true
 }
 ```
 
