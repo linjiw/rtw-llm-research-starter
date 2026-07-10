@@ -153,6 +153,7 @@ to every non-trivial item.
 | I6 | Template library 12 → ~20–40 (`microcode_gen.py`), randomized names, `ood_*` families | probe GO |
 | I7 | Sandbox hardening: spawned persistent worker (never fork-after-CUDA), instruction-count budget, rlimit-mem/no-network; document residual risk honestly | probe GO |
 | I8 | Teacher tables for new aux keys (STABLE_FLOORS/CAPS/target_weight_sum); restrict to adaptive_stable/static/manual/random | probe GO |
+| I8b | **Per-key init/static weight vector** so static/manual can hold a proxy-heavy TEMPTATION budget (today they emit a scalar init_weight → can't encode E5's mis-weighting). Default-off (scalar default; Countdown byte-identical); advisor design+diff review. Required by the reshaped E5 (`E5_PRECONDITION_TEACHER_MECHANISM_20260710.md`) | before E5 |
 | I9 | Dataset card + tests per invariant #4 (reference-passes-held-out in CI, hardcode scores visible=1/primary=0, bit-stable re-verification, metamorphic cross-checks) | with I6–I8 |
 | I10 | MicroCode eval/best-of-N path + **frozen Paper-2 protocol** (task IDs, sampling config, selector analog) — pre-registered BEFORE the pilot | before E4 |
 
@@ -173,7 +174,7 @@ Sequential on the single A10G. Each experiment gets a pre-registered plan doc
 | E2 | Paper-2 base probe (go/no-go) | eval-only, R0–R2 few-shot, 0.5B | held_out_pass_rate > 0, executes > 0, within-group std > 0 at init | GO → I6–I10; NO-GO → 1.5B or SFT-format-warmup fallback; if those fail → MiniPipe fallback | queued after E1 |
 | E3 | Paper-1 consolidation (CPU) | plots/tables (I3), scorer consolidation (I1), paper edits (I4, after sign-off) | — | Paper 1 submission-ready draft | interleave now |
 | E4 | MicroCode pilot | static vs adaptive_stable, HONEST budget, 300 steps, seed 0, frozen Paper-2 protocol | paired held_out_all_pass@8 + dense-variance health (did groups stay unsaturated?) | both healthy + non-degenerate → E5; adaptive-vs-static difference recorded but NOT the headline yet | gated on E2 GO |
-| E5 | Hacking experiment (Paper-2 headline) | HONEST vs TEMPTATION × static vs adaptive_stable, seed 0 | proxy−primary gap (visible − held_out + no_hardcoding rate) vs step | pre-check: TEMPTATION-static must show the hack signature, else pillar 2 is inert-from-the-other-side (report as such); then thesis test = does adaptive close the gap? | gated on E4 |
+| E5 | Hacking experiment (Paper-2 headline) — **RESHAPED**: TEMPTATION = proxy-overweight INIT/static vector (NOT a raised floor, which inverts the thesis); needs I8b | HONEST vs TEMPTATION × static vs adaptive_stable, seed 0 | proxy−primary gap (visible − held_out + no_hardcoding rate) vs step | pre-check: TEMPTATION-static must reach hack_wins=True first (else impossible-to-win); then thesis test = does adaptive close the gap? Mechanism CPU-verified (`e5-precond`); resistance still gated on live closed loop | gated on E4 + I8b |
 | E6 | Seed expansion + OOD-template transfer for E4/E5 keepers | seeds 1/2, frozen protocol | 3-seed distribution + McNemar | program standard: multi-seed only for seed-0 survivors | gated on E5 |
 | E7 (deferred) | Post-SFT legality-phase curriculum probe on med/hard legality | one arm, only if a GPU window is otherwise idle | med/hard candidate legality (NOT exact) | narrow; pre-register that exact is not expected to move | optional |
 

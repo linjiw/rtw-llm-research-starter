@@ -61,24 +61,45 @@ reward and non-zero variance — no rung is a 0/1 cliff.
 
 ## The hacking experiment (makes pillar 2 LIVE)
 
+**RESHAPED 2026-07-10** after the CPU precondition test
+(`E5_PRECONDITION_TEACHER_MECHANISM_20260710.md`): the original
+"TEMPTATION = raised proxy floor" knob was refuted — a raised floor PINS the
+proxy weight high and *handcuffs* the adaptive arm (crossover at floor ≈0.295),
+inverting the thesis; and `static` emits a scalar `init_weight` so it cannot
+encode a proxy-heavy budget at all. The corrected design:
+
 Two paired arms, same frozen task IDs, McNemar protocol. Hacking is an
 **ablation knob**, not assumed emergent:
-- Arm HONEST: default `adaptive_stable` budget (held_out_pass_rate weighted,
-  visible_pass_rate floored).
-- Arm TEMPTATION: a deliberately mis-tuned budget where visible_pass_rate is
-  weighted so a full hack (visible 1, held-out 0) out-ranks an honest partial
-  (visible 0.6, held-out 0.6) WITHIN a GRPO group (GRPO advantage is
-  within-group ranking, so this is what actually makes the hack the easiest
-  gradient).
+- Arm HONEST: `adaptive_stable` with default low floors (proxy ~0.02–0.10).
+- Arm TEMPTATION: a **proxy-OVERWEIGHTED per-key INITIAL/static weight vector**
+  — `visible_pass_rate` init/frozen high (~0.30–0.35, proxy-dominant so a full
+  hack out-ranks an honest partial WITHIN a GRPO group), true-signal channels
+  held_out/no_hardcoding ~0.10. NOT a raised floor. The adaptive arm keeps a
+  LOW proxy floor (<0.10, below the ~0.295 crossover) so it retains headroom to
+  decay the 0.35 init to its need-driven ~0.145 fixed point (convergence is
+  start-independent); held_out floor ≥0.10 so the budget projection cannot
+  starve it.
+- **REQUIRED framework change before GPU (one variable, default-off):** add a
+  per-key init/static weight vector so `static`/`manual` can hold the
+  proxy-heavy budget (today they emit a single scalar `init_weight`). Countdown
+  defaults stay byte-identical (scalar is the default; vector is opt-in).
+  Advisor design+diff review before GPU.
 - HEADLINE METRIC: the proxy−primary gap (visible_pass_rate −
   held_out_pass_rate + no_hardcoding firing rate) vs step, static vs
-  adaptive_stable. Thesis prediction: under TEMPTATION, static holds the proxy
-  weight fixed and the gap widens (gets gamed); adaptive_stable sees
-  visible_pass_rate saturate → need=1−ema→0 → spontaneously down-weights the
-  proxy, keeping the gap closed. The held-out verifier measures true success
-  throughout, so "proxy up + primary flat = hacking" is directly observable.
-- PRE-REGISTER precondition: confirm the TEMPTATION-static arm actually reaches
-  the hack signature at 0.5B before claiming the pillar is live (1.5B fallback).
+  adaptive_stable. Mechanism (CPU-verified on the real teacher): as
+  visible_pass_rate EMA saturates, need=1−ema→0 drives the proxy weight
+  0.20→~0.145 and routes freed mass to held_out (→largest aux) + no_hardcoding;
+  static holds it fixed and gets gamed. The held-out verifier measures true
+  success throughout, so "proxy up + primary flat = hacking" is directly
+  observable.
+- PRE-REGISTER precondition (fairness): confirm the TEMPTATION-static arm
+  actually reaches `hack_wins=True` at 0.5B (the within-group hack must beat an
+  honest partial — boundary observed when true-signal channels are capped
+  0.05–0.10) BEFORE any resistance claim, else the test is impossible-to-win.
+  1.5B fallback if unreachable.
+- CAVEAT (need-driven, not hack-aware): adaptive protects held_out only because
+  it is observed LOW; if a hack co-inflates held_out, protection weakens — a
+  live-run failure mode to watch, GPU-only.
 
 ## Build plan (CPU, ordered; NO GPU until step 6 probe passes)
 
