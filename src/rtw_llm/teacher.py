@@ -53,6 +53,11 @@ class TeacherConfig:
     min_weight: float = 0.02
     max_weight: float = 0.35
     init_weight: float = 0.20
+    # Optional per-key override of init_weight (I8b): lets `static` hold a
+    # proxy-heavy budget and the adaptive delay-period seed from a per-key
+    # vector, for the reshaped Paper-2 E5 TEMPTATION arm. Default None →
+    # byte-identical scalar behavior. Keys must be a subset of aux_keys.
+    init_weights: dict[str, float] | None = None
     ema_beta: float = 0.90
     lr: float = 0.30
     primary_success_decay: float = 0.75
@@ -96,11 +101,21 @@ class RTWTeacher:
                 self.config.stable_floors = STABLE_FLOORS_V12.copy()
             if self.config.stable_caps == STABLE_CAPS:
                 self.config.stable_caps = STABLE_CAPS_V12.copy()
+        if self.config.init_weights is not None:
+            # Fail loud on a mis-keyed per-key init vector (A2): a typo like
+            # "visible_pass" (missing "_rate") would silently revert that key to
+            # the scalar and un-temper the E5 TEMPTATION arm.
+            unknown = set(self.config.init_weights) - set(self.config.aux_keys)
+            if unknown:
+                raise ValueError(
+                    f"init_weights has keys not in aux_keys: {sorted(unknown)}; "
+                    f"aux_keys={self.config.aux_keys}"
+                )
         self.step = 0
         self.rng = random.Random(self.config.seed)
         self.ema_primary = 0.0
         self.ema_aux = {k: 0.0 for k in self.config.aux_keys}
-        self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
+        self.weights = {k: self._init_weight(k) for k in self.config.aux_keys}
         self.history: list[dict] = []
         self.last_diagnostics: dict = {}
         self.teacher_phase = "A" if self.config.strategy == "adaptive_phased" else None
@@ -112,6 +127,16 @@ class RTWTeacher:
         if self.log_path:
             self.log_path.parent.mkdir(parents=True, exist_ok=True)
             self.log_path.write_text("")
+
+    def _init_weight(self, key: str) -> float:
+        """Per-key init weight if configured (I8b), else the scalar init_weight.
+
+        With init_weights=None this is exactly float(init_weight) for every key,
+        so all init sites stay byte-identical to the pre-I8b behavior.
+        """
+        if self.config.init_weights is not None and key in self.config.init_weights:
+            return float(self.config.init_weights[key])
+        return float(self.config.init_weight)
 
     def get_weights(self) -> dict[str, float]:
         if self.config.strategy == "random":
@@ -155,7 +180,7 @@ class RTWTeacher:
         elif self.config.strategy == "adaptive_phased":
             raw_weights, floor_hits, cap_hits, delay_active = self._adaptive_phased_update(previous_weights)
         elif self.config.strategy == "static":
-            self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
+            self.weights = {k: self._init_weight(k) for k in self.config.aux_keys}
         elif self.config.strategy == "manual":
             self.weights = self.get_weights()
         elif self.config.strategy == "random":
@@ -212,7 +237,7 @@ class RTWTeacher:
         previous_weights: dict[str, float],
     ) -> tuple[dict[str, float], list[str], list[str], bool]:
         if self.step < self.config.stable_delay_steps:
-            self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
+            self.weights = {k: self._init_weight(k) for k in self.config.aux_keys}
             return dict(self.weights), [], [], True
 
         raw_weights = self._adaptive_candidate(previous_weights, lr=self.config.stable_lr)
@@ -229,7 +254,7 @@ class RTWTeacher:
         previous_weights: dict[str, float],
     ) -> tuple[dict[str, float], list[str], list[str], bool]:
         if self.step < self.config.stable_delay_steps:
-            self.weights = {k: float(self.config.init_weight) for k in self.config.aux_keys}
+            self.weights = {k: self._init_weight(k) for k in self.config.aux_keys}
             self.teacher_phase = "A"
             return dict(self.weights), [], [], True
 
@@ -314,7 +339,7 @@ class RTWTeacher:
         projected_caps = {key: max(projected_caps[key], projected_floors[key]) for key in self.config.aux_keys}
 
         weights = {
-            key: min(projected_caps[key], max(projected_floors[key], float(candidate.get(key, self.config.init_weight))))
+            key: min(projected_caps[key], max(projected_floors[key], float(candidate.get(key, self._init_weight(key)))))
             for key in self.config.aux_keys
         }
 

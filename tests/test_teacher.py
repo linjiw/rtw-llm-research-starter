@@ -350,3 +350,80 @@ def test_adaptive_stable_golden_trajectory_unchanged():
     assert weights["numeric_distance_reward"] <= 0.20 + 1e-9
     assert all(w <= 0.35 + 1e-9 for w in weights.values())
     assert abs(sum(weights.values()) - 1.20) < 1e-6
+
+
+# --- I8b: per-key init/static weight vector (default-off, byte-identical) ---
+
+# A distinct vector where NO value equals the 0.20 scalar default, so a missed
+# routing site (which would emit 0.20) is caught, not masked (advisor A1).
+_I8B_VEC = {
+    "format": 0.05,
+    "valid_expression": 0.11,
+    "number_multiset_f1": 0.13,
+    "allowed_ops": 0.17,
+    "numeric_distance_reward": 0.19,
+    "brevity": 0.31,
+}
+
+
+def test_i8b_default_none_is_byte_identical_static():
+    # Regression pin: init_weights=None must equal the scalar path exactly.
+    t = RTWTeacher(TeacherConfig(strategy="static", init_weight=0.2))
+    assert t.get_weights() == {k: 0.2 for k in AUX_KEYS}
+
+
+def test_i8b_static_holds_per_key_vector_before_and_after_update():
+    t = RTWTeacher(TeacherConfig(strategy="static", init_weights=dict(_I8B_VEC)))
+    # (a) step 0, before any update() — pins the __init__ seed site
+    assert t.get_weights() == _I8B_VEC
+    # (b) after update() — pins the static branch site
+    t.update([{"correct": 1.0, **{k: 1.0 for k in AUX_KEYS}}])
+    assert t.get_weights() == _I8B_VEC
+
+
+def test_i8b_adaptive_stable_delay_seeds_per_key_vector():
+    t = RTWTeacher(TeacherConfig(strategy="adaptive_stable", stable_delay_steps=50,
+                                 init_weights=dict(_I8B_VEC), seed=0))
+    # during the delay period the weights are the per-key init (pins delay reset)
+    t.update([{"correct": 0.0, **{k: 0.0 for k in AUX_KEYS}}])
+    assert t.get_weights() == _I8B_VEC
+
+
+def test_i8b_adaptive_phased_delay_seeds_per_key_vector():
+    t = RTWTeacher(TeacherConfig(strategy="adaptive_phased", stable_delay_steps=50,
+                                 init_weights=dict(_I8B_VEC), seed=0))
+    t.update([{"correct": 0.0, **{k: 0.0 for k in AUX_KEYS}}])
+    assert t.get_weights() == _I8B_VEC
+
+
+def test_i8b_missing_key_falls_back_to_scalar():
+    # A key absent from init_weights uses the scalar init_weight.
+    t = RTWTeacher(TeacherConfig(strategy="static", init_weight=0.2,
+                                 init_weights={"valid_expression": 0.40}))
+    w = t.get_weights()
+    assert w["valid_expression"] == 0.40
+    assert w["format"] == 0.2  # fell back to scalar
+
+
+def test_i8b_unknown_key_fails_loud():
+    # A typo (key not in aux_keys) must raise, not silently revert (advisor A2).
+    import pytest
+    with pytest.raises(ValueError, match="not in aux_keys"):
+        RTWTeacher(TeacherConfig(strategy="static", init_weights={"visible_pass": 0.35}))
+
+
+def test_i8b_adaptive_stable_decays_overweight_proxy_post_delay():
+    # E5 mechanism: a proxy-overweight init with a LOW floor must be free to
+    # decay post-delay (floors orthogonal to init). Use valid_expression as the
+    # stand-in proxy; saturate its ema so need->0 pulls it down.
+    t = RTWTeacher(TeacherConfig(
+        strategy="adaptive_stable", stable_delay_steps=2,
+        init_weights={**{k: 0.02 for k in AUX_KEYS}, "valid_expression": 0.35},
+        stable_floors={k: 0.02 for k in AUX_KEYS}, seed=0,
+    ))
+    start = t.get_weights()["valid_expression"]
+    for _ in range(60):
+        t.update([{"correct": 0.0, **{k: 0.0 for k in AUX_KEYS}, "valid_expression": 1.0}])
+    end = t.get_weights()["valid_expression"]
+    assert start == 0.35
+    assert end < start  # need=1-ema decays the saturating overweighted proxy
