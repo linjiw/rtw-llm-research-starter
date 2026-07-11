@@ -6,7 +6,7 @@ committed score JSONs + candidate banks. Claims per
 
 ## C1 — Inference-time selection saturates
 
-reranked@8 == oracle@8 in 53/53 banks (selection saturated)
+reranked@8 == oracle@8 in 60/60 banks (selection saturated)
 
 | bank | n_tasks | reranked@8 | oracle@8 | gap |
 |---|---|---|---|---|
@@ -18,8 +18,12 @@ reranked@8 == oracle@8 in 53/53 banks (selection saturated)
 | harness_stable_seed0_test_in_dist_prompt_mid_limit50_n8 | 50 | 2 | 2 | 0 |
 | harness_stable_seed0_validation_prompt_high_limit50_n8 | 50 | 6 | 6 | 0 |
 | harness_stable_seed0_validation_prompt_mid_limit50_n8 | 50 | 1 | 1 | 0 |
+| harness_stable_seed1_test_in_dist_prompt_high_limit50_n8 | 50 | 6 | 6 | 0 |
+| harness_stable_seed1_test_in_dist_prompt_mid_limit50_n8 | 50 | 2 | 2 | 0 |
 | harness_stable_seed1_validation_prompt_high_limit50_n8 | 50 | 5 | 5 | 0 |
 | harness_stable_seed1_validation_prompt_mid_limit50_n8 | 50 | 1 | 1 | 0 |
+| harness_stable_seed2_test_in_dist_prompt_high_limit50_n8 | 50 | 8 | 8 | 0 |
+| harness_stable_seed2_test_in_dist_prompt_mid_limit50_n8 | 50 | 3 | 3 | 0 |
 | harness_stable_seed2_validation_prompt_high_limit50_n8 | 50 | 4 | 4 | 0 |
 | harness_stable_seed2_validation_prompt_mid_limit50_n8 | 50 | 4 | 4 | 0 |
 | harness_static_seed0_test_in_dist_prompt_high_limit50_n8 | 50 | 5 | 5 | 0 |
@@ -27,8 +31,11 @@ reranked@8 == oracle@8 in 53/53 banks (selection saturated)
 | harness_static_seed0_validation_prompt_high_limit50_n8 | 50 | 7 | 7 | 0 |
 | harness_static_seed0_validation_prompt_mid_limit50_n8 | 50 | 2 | 2 | 0 |
 | harness_static_seed1_test_in_dist_prompt_high_limit50_n8 | 50 | 2 | 2 | 0 |
+| harness_static_seed1_test_in_dist_prompt_mid_limit50_n8 | 50 | 3 | 3 | 0 |
 | harness_static_seed1_validation_prompt_high_limit50_n8 | 50 | 2 | 2 | 0 |
 | harness_static_seed1_validation_prompt_mid_limit50_n8 | 50 | 4 | 4 | 0 |
+| harness_static_seed2_test_in_dist_prompt_high_limit50_n8 | 50 | 6 | 6 | 0 |
+| harness_static_seed2_test_in_dist_prompt_mid_limit50_n8 | 50 | 1 | 1 | 0 |
 | harness_static_seed2_validation_prompt_high_limit50_n8 | 50 | 2 | 2 | 0 |
 | harness_static_seed2_validation_prompt_mid_limit50_n8 | 50 | 2 | 2 | 0 |
 | ood_base_test_ood_division_limit50_n8 | 50 | 0 | 0 | 0 |
@@ -169,6 +176,18 @@ pillar 3); OOD = per-arm legality / div-adoption / P(exact|legal).
         "advantage_mean": 0.0208,
         "sign_consistent": false,
         "n_seeds_favor_stable": 1
+      }
+    },
+    "test_in_dist": {
+      "legal_degradation": {
+        "advantage_mean": 0.0033,
+        "sign_consistent": false,
+        "n_seeds_favor_stable": 2
+      },
+      "f1_degradation": {
+        "advantage_mean": 0.0439,
+        "sign_consistent": true,
+        "n_seeds_favor_stable": 3
       }
     }
   },
