@@ -193,6 +193,38 @@ def _ref_merge_sorted(a, b):
     return out
 
 
+# ---- I6-c: OOD held-out references (never drawn by a train spec) ----
+# ood_compose = recombination of known train primitives; ood_transform = novel
+# output shapes. Same JSON-safe guardrails as train refs.
+
+
+def _ref_sum_pos_even(nums):
+    return sum(x for x in nums if x > 0 and x % 2 == 0)
+
+
+def _ref_count_in_range(nums, lo, hi):
+    return sum(1 for x in nums if lo <= x <= hi)
+
+
+def _ref_second_max(nums):
+    # second-LARGEST DISTINCT value, or None if fewer than 2 distinct.
+    distinct = sorted(set(nums), reverse=True)
+    return distinct[1] if len(distinct) >= 2 else None
+
+
+def _ref_pairwise_diff(nums):
+    return [nums[i + 1] - nums[i] for i in range(len(nums) - 1)]
+
+
+def _ref_is_palindrome_list(nums):
+    return nums == nums[::-1]
+
+
+def _ref_zip_sum(a, b):
+    n = min(len(a), len(b))
+    return [a[i] + b[i] for i in range(n)]
+
+
 def _rint(rng, lo=-9, hi=9):
     return rng.randint(lo, hi)
 
@@ -300,6 +332,43 @@ TEMPLATES: list[Template] = [
              "Given two ascending lists {p0} and {p1}, return their merged ascending list.",
              _ref_merge_sorted, lambda r: (_rsorted(r, 1, 5), _rsorted(r, 1, 5)),
              lambda r: [([], []), ([], [1, 2]), ([1, 2], []), ([1, 1], [1, 1]), ([1, 3, 5], [2, 4])]),
+    # ---- I6-c: OOD held-out families (never sampled by a train spec) ----
+    # ood_compose: recombination of known train primitives.
+    Template("sum_pos_even", 3, "sum_pos_even", ["nums"],
+             "Return the sum of elements of {p0} that are both strictly positive and even.",
+             _ref_sum_pos_even, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([1, 3, 5],), ([-2, -4],), ([0, 2, 4],), ([2, -2, 3, 6],)],
+             family="ood_compose"),
+    Template("count_in_range", 3, "count_in_range", ["nums", "lo", "hi"],
+             "Return how many elements of {p0} satisfy {p1} <= x <= {p2} (inclusive).",
+             _ref_count_in_range,
+             lambda r: (_rlist(r, 1, 7), _rint(r, -5, 0), _rint(r, 0, 5)),
+             lambda r: [([], 0, 5), ([1, 2, 3], 3, 1), ([-3, 0, 3], -3, 3), ([5, 5], 5, 5), ([9, -9], -1, 1)],
+             family="ood_compose"),
+    Template("second_max", 4, "second_largest", ["nums"],
+             "Return the second-largest DISTINCT value in {p0}, or None if fewer "
+             "than 2 distinct values.",
+             _ref_second_max, lambda r: (_rlist(r, 2, 7),),
+             lambda r: [([],), ([5],), ([3, 3, 3],), ([1, 2, 2],), ([-1, -5, -1],)],
+             family="ood_compose"),
+    # ood_transform: novel output shapes not present in the train families.
+    Template("pairwise_diff", 3, "pairwise_diff", ["nums"],
+             "Return the list of consecutive differences of {p0} "
+             "(element i+1 minus element i); length is len({p0}) - 1.",
+             _ref_pairwise_diff, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([5],), ([1, 2, 3],), ([3, 3, 3],), ([-1, -4, 2],)],
+             family="ood_transform"),
+    Template("is_palindrome", 4, "is_palindrome_list", ["nums"],
+             "Return True if {p0} reads the same forwards and backwards, else False.",
+             _ref_is_palindrome_list, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([7],), ([1, 2, 1],), ([1, 2, 2, 1],), ([1, 2, 3],)],
+             family="ood_transform"),
+    Template("zip_sum", 5, "zip_sum", ["a", "b"],
+             "Return the element-wise sum of {p0} and {p1}, truncated to the "
+             "length of the shorter list.",
+             _ref_zip_sum, lambda r: (_rlist(r, 1, 5), _rlist(r, 1, 5)),
+             lambda r: [([], []), ([], [1]), ([1, 2], []), ([1, 2, 3], [4, 5]), ([-1, 1], [1, -1])],
+             family="ood_transform"),
 ]
 
 TEMPLATES_BY_RUNG: dict[int, list[Template]] = {}
@@ -318,7 +387,19 @@ def difficulty_spec(difficulty: str) -> dict[str, Any]:
     if rungs:
         return {"difficulty": difficulty, "rungs": rungs, "families": ("train",),
                 "n_visible": 2, "n_held_out": 5}
+    # OOD tiers draw ONLY their held-out family (never "train"); rungs are the
+    # family's own rungs (explicit, not RUNG_TIER-derived). These are the
+    # MicroCode analogue of Countdown's test_ood_* splits.
+    if difficulty in _OOD_SPECS:
+        return {"difficulty": difficulty, **_OOD_SPECS[difficulty],
+                "n_visible": 2, "n_held_out": 5}
     raise ValueError(f"unknown difficulty {difficulty!r}")
+
+
+_OOD_SPECS: dict[str, dict[str, Any]] = {
+    "ood_compose": {"rungs": [3, 4], "families": ("ood_compose",)},
+    "ood_transform": {"rungs": [3, 4, 5], "families": ("ood_transform",)},
+}
 
 
 def _template_pool(spec: dict[str, Any]) -> list[Template]:

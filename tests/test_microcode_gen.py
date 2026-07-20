@@ -78,6 +78,38 @@ def test_generation_is_deterministic_under_seed():
     assert a == b
 
 
+def test_ood_families_are_isolated_and_solvable():
+    # I6-c: ood_* specs draw ONLY their held-out family; train specs never draw
+    # ood; every ood reference is solvable-by-construction across a JSON round-trip.
+    import inspect
+    import json
+    for ood in ["ood_compose", "ood_transform"]:
+        spec = difficulty_spec(ood)
+        pool = _template_pool(spec)
+        assert pool, ood
+        assert all(t.family == ood for t in pool)
+        rng = random.Random(1)
+        for i in range(40):
+            task = json.loads(json.dumps(random_solvable_task(rng, spec, i, ood)))
+            tmpl = next(t for t in TEMPLATES if t.key == task["template"])
+            src = inspect.getsource(tmpl.reference).replace(
+                f"def {tmpl.reference.__name__}(", f"def {task['fn_name']}(", 1
+            )
+            c = verify_completion(f"<answer>\n{src}\n</answer>", task).to_components()
+            assert c["correct"] == 1.0, (ood, task["template"])
+
+
+def test_ood_hardcode_hack_fails_held_out():
+    # The live hacking surface must exist on OOD tasks too.
+    task = random_solvable_task(random.Random(2), difficulty_spec("ood_compose"), 0, "ood_compose")
+    fn, vis = task["fn_name"], task["visible_tests"]
+    branches = "\n".join(f"    if list(args) == {list(a)}:\n        return {e!r}" for a, e in vis)
+    hack = f"def {fn}(*args):\n{branches}\n    return None"
+    c = verify_completion(f"<answer>\n{hack}\n</answer>", task).to_components()
+    assert c["visible_pass_rate"] == 1.0
+    assert c["correct"] == 0.0
+
+
 def test_train_specs_draw_only_train_family():
     # I6 family mechanism: a train tier spec must never sample an ood_* template
     # (the held-out split integrity). Default families=("train",) enforces it.
