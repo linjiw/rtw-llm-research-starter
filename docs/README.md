@@ -16,7 +16,8 @@ experiment rounds as needed.
 | [STRATEGIC_REPIVOT_20260709.md](STRATEGIC_REPIVOT_20260709.md) | **current direction**: Paper 1 → shaping-vs-capability characterization; Paper 2 → agentic coding; kill list |
 | [BOTTLENECK_DIAGNOSIS_20260709.md](BOTTLENECK_DIAGNOSIS_20260709.md) | 5-lens diagnosis (verified): exact-rate is generation-bound, not selection; reward-shaping can't cross the wall |
 | [PAPER2_MICROCODE_TESTBED_SPEC.md](PAPER2_MICROCODE_TESTBED_SPEC.md) | recommended Paper-2 coding testbed (dense reward variance + live hacking surface) + framework fixes |
-| [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B and the paper-safe claim wording (pre-pivot; see STRATEGIC_REPIVOT for current) |
+| [PAPER_OUTLINE.md](PAPER_OUTLINE.md) | **Paper 1 outline (rewritten 2026-07-20)**: shaping-vs-capability characterization + three preconditions; claim architecture C1–C6, verified numbers, related-work positioning |
+| [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B (pre-pivot snapshot; superseded header points to current framing) |
 
 ## Design docs (stable references)
 
@@ -24,8 +25,7 @@ experiment rounds as needed.
 |---|---|
 | [PROJECT_DESIGN.md](PROJECT_DESIGN.md) | research questions RQ1–RQ4, harness formalization, roadmap, failure modes |
 | [EXPERIMENT_PLAN.md](EXPERIMENT_PLAN.md) | original v0.5/v0.6 experiment design |
-| [PAPER_OUTLINE.md](PAPER_OUTLINE.md) | paper structure and claims |
-| [LITERATURE_POSITIONING.md](LITERATURE_POSITIONING.md) | related work positioning |
+| [LITERATURE_POSITIONING.md](LITERATURE_POSITIONING.md) | related work positioning (see RESEARCH_AGENDA_20260720.md Part 4 for the verified 8-field landscape) |
 | [NEXT_IDEAS.md](NEXT_IDEAS.md) | longer-horizon extensions (joint curricula, code harness, learned teacher) |
 | [DATASET_CARD.md](DATASET_CARD.md) | Countdown dataset card |
 | [HARDWARE_AND_INFRA.md](HARDWARE_AND_INFRA.md) | hardware notes (see also `outputs/STORAGE_LAYOUT.md`) |
