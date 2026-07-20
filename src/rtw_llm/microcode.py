@@ -155,6 +155,20 @@ class MicroVerificationResult:
     expression: str = ""
     error: str | None = None
 
+    # Compat with the task-agnostic RTWRewardManager log records + oracle eval,
+    # which read `.value` and `.correct` off the VerificationResult contract
+    # (countdown.VerificationResult exposes both). MicroCode has no scalar
+    # "value" (the held-out suite is the truth), so `.value` surfaces the
+    # held-out pass rate for logging; `.correct` mirrors the primary
+    # (held_out_all_pass). Additive — does not change to_components.
+    @property
+    def value(self) -> float:
+        return float(self.held_out_pass_rate)
+
+    @property
+    def correct(self) -> bool:
+        return bool(self.held_out_all_pass)
+
     def to_components(self, max_chars: int = 600) -> dict[str, float]:
         legal = float(self.parses and self.imports_safe and self.names_safe and self.defines_target)
         brevity = 1.0 if len(self.expression) <= max_chars else 0.0

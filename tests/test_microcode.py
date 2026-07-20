@@ -4,6 +4,8 @@ from rtw_llm.microcode import (
     static_legality,
     verify_completion,
 )
+from rtw_llm.rewards import RTWRewardManager
+from rtw_llm.teacher import RTWTeacher, TeacherConfig
 
 TASK = {
     "fn_name": "count_greater",
@@ -24,6 +26,38 @@ def test_correct_solution_scores_primary_1_and_full_pass():
     assert c["held_out_pass_rate"] == 1.0
     assert c["visible_pass_rate"] == 1.0
     assert c["valid_expression"] == 1.0
+
+
+def test_reward_manager_runs_microcode_scorer_end_to_end():
+    # Regression: RTWRewardManager log records read result.value / result.correct
+    # (the VerificationResult contract). MicroVerificationResult must expose both
+    # (compat properties) or a GRPO/eval run through the manager crashes on the
+    # first batch. This bug would have killed the E4 pilot; guard it here.
+    mgr = RTWRewardManager(
+        teacher=RTWTeacher(TeacherConfig(strategy="static")),
+        scorer=score_completion,
+        example_fields=("fn_name", "visible_tests", "held_out_tests"),
+        group_size=2,
+    )
+    correct = wrap("def count_greater(nums, threshold):\n    return sum(1 for x in nums if x > threshold)")
+    wrong = wrap("def count_greater(nums, threshold):\n    return 0")
+    rewards = mgr(
+        completions=[correct, wrong],
+        id=["t", "t"],
+        difficulty=["medium", "medium"],
+        fn_name=[TASK["fn_name"]] * 2,
+        visible_tests=[TASK["visible_tests"]] * 2,
+        held_out_tests=[TASK["held_out_tests"]] * 2,
+    )
+    assert len(rewards) == 2
+    assert rewards[0] > rewards[1]  # correct out-scores the constant-0 hack
+
+
+def test_microcode_result_value_and_correct_properties():
+    comp = wrap("def count_greater(nums, threshold):\n    return sum(1 for x in nums if x > threshold)")
+    r = verify_completion(comp, TASK)
+    assert r.correct is True
+    assert r.value == r.held_out_pass_rate == 1.0
 
 
 def test_partial_solution_gives_dense_partial_credit_not_primary():
