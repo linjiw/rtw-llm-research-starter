@@ -172,6 +172,61 @@ is fixed now.
 - **Group reconstruction mismatch** with `rewards.py`'s positional layout →
   assert group size divides row count per `reward_batch_index`.
 
+## RESULTS (2026-07-20, `scripts/19_bandit_replay.py` → `outputs/bandit_replay.json`; adversarially verified)
+
+7 streams (stable seeds 0/1/2, static 0/1/2, v10c2 seed0; 1200 groups × 4 each).
+Harness sanity PASSED: offline `adaptive_stable` reproduces the committed
+`teacher_weights.jsonl` final weights to **L1 = 0.00000**.
+
+| metric (mean over family) | stable | static | v10c2 |
+|---|---|---|---|
+| oracle top1-flip ceiling | 0.70 | 0.71 | 0.70 |
+| oracle pos-advantage-change ceiling | 0.92 | 0.93 | 0.90 |
+| **correct already top-1 (uniform)** | **1.000** | **1.000** | **1.000** |
+| **oracle correct-rescue candidates** | **0** | **0** | **0** |
+| oracle dead-group revival | 0.0006 | 0.0003 | 0.000 |
+| bandit final L1 | 0.250 | 0.250 | 0.250 |
+| bandit **zero-signal control** L1 | 0.250 | 0.250 | 0.250 |
+| adaptive_stable final L1 | 0.156 | 0.163 | 0.135 |
+
+**Verdict — SPLIT, resolved by the controller-INDEPENDENT mechanism, NOT the bandit.**
+
+- **Literal pre-registered rule → Outcome B** (oracle ceiling high 0.70 AND
+  bandit L1 0.25 > 2× adaptive_stable 0.16). Honored transparently.
+- **But the Outcome-B *escalation* is NOT warranted**, because both legs are
+  hollow on inspection:
+  1. **The bandit L1 is not signal exploitation** (advisor catch). The realized
+     trajectory L1 (0.250) **exactly equals the zero-signal control** (0.250):
+     at these arm-reward magnitudes the EXP3 updates are tiny vs the exploration
+     term, so movement is RNG/exploration-dominated and signal-independent. The
+     bandit demonstrates nothing about a stronger controller "doing something";
+     it is demoted to non-load-bearing, as pre-registered.
+  2. **The high top1-flip ceiling lives ENTIRELY in the no-correct groups.** In
+     the ~91% of groups with no correct completion, reweighting reshuffles which
+     legal-but-wrong completion is preferred (that IS aux shaping working — not
+     inertness). In the ~9% of groups WITH a correct completion, **top1 flips
+     0.0%**: **correct is always already the strict argmax**, and there are
+     **0 rescue candidates** to search.
+- **The load-bearing, controller-independent finding:** every correct
+  completion in the corpus scores 1.0 on **all six** aux components, so it
+  carries primary (+1.0) **plus** full aux (~1.2) ≈ 2.2, strictly dominating any
+  incorrect completion (aux-only ≤ ~1.2) under **any** non-negative weight
+  vector — bounded or unbounded. **No controller of any strength can rescue or
+  demote a correct completion by reweighting.** Combined with the 91%
+  generation wall (no correct candidate exists to route toward), this answers
+  **Q3: the inertness on exact success is precondition-failure, not weak-
+  controller** — *at the observed operating point*.
+
+**Honest scope (advisor-required):** the replay is on-policy; the 91%
+generation wall is a property of these policies' outputs, so this does NOT prove
+a *different closed-loop trajectory* wouldn't generate more correct completions.
+It proves: on the observed completions, no reweighting manufactures a correct-
+completion preference. The static/v10c2 cross-family replication (identical
+rescue=0, ~91% no-correct) partially breaks the on-policy dependence. The
+GPU-escalation is therefore **declined** — a bandit-teacher Countdown run would
+face the same generation wall and the same primary-dominance, so it cannot
+change the answer. This is the "measure before spending GPU" reflex working.
+
 ## Not in scope (kill-list respected)
 No GPU this step; no closed-loop bandit training unless Outcome B triggers the
 single pre-registered escalation arm; no change to the verifier, selector,

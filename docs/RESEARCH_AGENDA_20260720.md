@@ -195,14 +195,21 @@ run the `hack_wins` pre-check *before* any resistance claim. Watch the
 need-driven-not-hack-aware failure mode (a hack co-inflating held_out weakens
 protection).
 
-**Q3 (strongest reviewer threat).** Is Countdown's inertness a property of
-**precondition failure** or of our **weak heuristic controller**? A reviewer
-can argue the null reflects the controller (ours ≠ the origin's policy-gradient
-teacher; DynaOpt/Lu already do learned reweighting). → Add a DynaOpt-style
-contextual-bandit teacher (mutable, default-off); **first CPU-forward**: replay
-logged Countdown reward-component streams through it. If it is *also* inert on
-~97%-saturated groups, precondition failure dominates (cite RR-detrimental
-precedent). GPU only if the CPU replay is ambiguous.
+**Q3 (strongest reviewer threat) — ✅ ANSWERED 2026-07-20 (ledger `s5-bandit-replay`).**
+Is Countdown's inertness **precondition failure** or our **weak controller**?
+**Precondition failure, via a controller-INDEPENDENT mechanism.** An
+assumption-free per-group oracle ceiling over 208 weight vectors on 7 streams
+(1200 groups each) shows: reweighting can flip top-1 in ~70% of groups, but that
+is *entirely* within the ~91% of groups that contain **no correct completion**
+(reshuffling legal-but-wrong = aux shaping working). In the ~9% of groups with a
+correct completion, top-1 flips **0.0%** and there are **0 rescue candidates** —
+because a correct Countdown completion scores 1.0 on *all six* aux components,
+so its total (~2.2) strictly dominates any incorrect completion (aux-only ≤~1.2)
+under *any* non-negative weighting. No controller of any strength can rescue a
+correct completion by reweighting. GPU-escalation **declined** (a stronger
+teacher faces the same generation wall + primary-dominance). Scope: proven at
+the observed operating point (on-policy); static/v10c2 cross-family replication
+partially breaks circularity.
 
 **Q4 (reconcile with VCRL).** Why does group-reward variance drive a *positive*
 curriculum in VCRL (math) but is *inert* in Countdown — is the difference
@@ -256,11 +263,13 @@ paired `held_out_all_pass@8`. **Success:** both arms healthy + non-degenerate;
 variance stays unsaturated *during* training → unlocks E5; degeneracy → ledger a
 NO-GO and trigger the 1.5B / SFT-format-warmup fallback.
 
-**S5 — Stand up a DynaOpt-style bandit teacher (CPU-forward).** Implement as a
-default-off strategy; replay committed Countdown reward-component streams
-offline. **Success:** a zero-GPU answer to "is the null just a weak controller?"
-— either also-inert (precondition failure dominates) or it moves (refine, don't
-overturn). Directly defuses Q3 / the top reviewer risk.
+**S5 — DynaOpt-style bandit replay (CPU) — ✅ DONE 2026-07-20** (ledger
+`s5-bandit-replay`, `scripts/19_bandit_replay.py`, `docs/S5_BANDIT_TEACHER_REPLAY_PLAN.md`).
+Delivered the zero-GPU answer to Q3: precondition failure, not a weak controller
+(oracle-ceiling mechanism; rescue=0 on all 7 streams). Advisor-design-reviewed
+pre-code (3 must-fix amendments) and adversarially result-verified (caught a
+bandit-ratchet artifact → demoted the bandit, led with the assumption-free
+oracle). 132 tests pass. The top reviewer risk is defused.
 
 ---
 
