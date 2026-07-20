@@ -6,6 +6,7 @@ from rtw_llm.microcode_gen import (
     RUNG_TIER,
     TEMPLATES,
     TEMPLATES_BY_RUNG,
+    _template_pool,
     difficulty_spec,
     random_solvable_task,
 )
@@ -67,6 +68,22 @@ def test_generation_is_deterministic_under_seed():
     a = random_solvable_task(random.Random(7), difficulty_spec("hard"), 5, "t")
     b = random_solvable_task(random.Random(7), difficulty_spec("hard"), 5, "t")
     assert a == b
+
+
+def test_train_specs_draw_only_train_family():
+    # I6 family mechanism: a train tier spec must never sample an ood_* template
+    # (the held-out split integrity). Default families=("train",) enforces it.
+    for tier in ["easy", "medium", "hard"]:
+        spec = difficulty_spec(tier)
+        assert spec["families"] == ("train",)
+        assert all(t.family == "train" for t in _template_pool(spec))
+
+
+def test_template_pool_default_families_is_train_only():
+    # An un-migrated spec (no 'families' key) must still default to train-only,
+    # never silently pulling ood templates.
+    spec = {"rungs": [0, 1], "n_visible": 2, "n_held_out": 5}  # no 'families'
+    assert all(t.family == "train" for t in _template_pool(spec))
 
 
 def test_fn_names_randomized_across_tasks():

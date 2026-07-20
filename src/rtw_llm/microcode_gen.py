@@ -33,6 +33,12 @@ class Template:
     reference: Callable[..., Any]      # vetted ground-truth impl (positional args)
     sample_args: Callable[[random.Random], tuple]  # one random happy-path input
     edge_args: Callable[[random.Random], list[tuple]]  # adversarial/edge inputs
+    # Held-out-template split (I6): "train" templates are the training
+    # distribution; ood_* families are NEVER drawn by a train spec — they are
+    # the MicroCode analogue of Countdown's test_ood_* splits, used to measure
+    # construction/composition transfer. Trailing default so all existing
+    # positional Template(...) constructors stay untouched (all => "train").
+    family: str = "train"
 
 
 def _ref_double(x):
@@ -182,18 +188,31 @@ for _t in TEMPLATES:
 
 
 def difficulty_spec(difficulty: str) -> dict[str, Any]:
-    """Map a tier label to the rungs it draws from + test-count knobs."""
+    """Map a tier label to the rungs it draws from + test-count knobs.
+
+    Train tiers (easy/medium/hard) draw only from the "train" template family
+    (families=("train",)); this keeps the sampled distribution byte-identical to
+    the pre-family generator. OOD tiers draw only their held-out family.
+    """
     rungs = [r for r, tier in RUNG_TIER.items() if tier == difficulty]
-    if not rungs:
-        raise ValueError(f"unknown difficulty {difficulty!r}")
-    return {"difficulty": difficulty, "rungs": rungs, "n_visible": 2, "n_held_out": 5}
+    if rungs:
+        return {"difficulty": difficulty, "rungs": rungs, "families": ("train",),
+                "n_visible": 2, "n_held_out": 5}
+    raise ValueError(f"unknown difficulty {difficulty!r}")
+
+
+def _template_pool(spec: dict[str, Any]) -> list[Template]:
+    """Templates a spec may sample: rung ∈ spec['rungs'] AND family ∈ spec's
+    families (default ('train',), so an un-migrated spec never pulls ood)."""
+    fams = set(spec.get("families", ("train",)))
+    return [t for r in spec["rungs"] for t in TEMPLATES_BY_RUNG[r] if t.family in fams]
 
 
 _NAME_POOL = ["solve", "compute", "run", "process", "handle", "apply", "fn", "task"]
 
 
 def random_solvable_task(rng: random.Random, spec: dict[str, Any], idx: int, split: str) -> dict[str, Any]:
-    tmpl = rng.choice([t for r in spec["rungs"] for t in TEMPLATES_BY_RUNG[r]])
+    tmpl = rng.choice(_template_pool(spec))
     # Randomize the function name (anti template-identity-memorization); keep
     # param names stable (they carry the docstring's meaning).
     fn_name = f"{rng.choice(_NAME_POOL)}_{tmpl.key}_{rng.randint(0, 999)}"
