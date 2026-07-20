@@ -222,7 +222,24 @@ def _no_hardcoding_score(fn_src: str, visible_cases: list) -> float:
     return max(0.0, 1.0 - smells / denom)
 
 
-def verify_completion(completion: str, example: dict[str, Any]) -> MicroVerificationResult:
+def verify_completion(
+    completion: str, example: dict[str, Any], sandbox: str = "inprocess"
+) -> MicroVerificationResult:
+    """Grade a completion against the held-out suite.
+
+    sandbox="inprocess" (default) runs test cases in-process — byte-identical to
+    the prototype, for the deterministic CPU test/repro suite. sandbox="worker"
+    runs them in a hardened spawned worker (memory wall + parent-crash isolation)
+    — use for any GPU GRPO run where model code executes (E4/E5). See
+    docs/S3_SANDBOX_HARDENING_PLAN.md.
+    """
+    if sandbox == "worker":
+        from .microcode_sandbox import run_one_worker
+        run = run_one_worker
+    elif sandbox == "inprocess":
+        run = _run_one
+    else:
+        raise ValueError(f"unknown sandbox mode {sandbox!r}")
     fn_name = example["fn_name"]
     visible = example["visible_tests"]      # list[(args_tuple, expected)]
     held_out = example["held_out_tests"]    # list[(args_tuple, expected)]
@@ -243,8 +260,8 @@ def verify_completion(completion: str, example: dict[str, Any]) -> MicroVerifica
             held_out_pass_rate=0.0, runs_without_error_rate=0.0, held_out_all_pass=False,
             no_hardcoding=0.0, expression=fn_src[:600], error="illegal code",
         )
-    vis = [_run_one(fn_src, fn_name, a, e) for a, e in visible]
-    hel = [_run_one(fn_src, fn_name, a, e) for a, e in held_out]
+    vis = [run(fn_src, fn_name, a, e) for a, e in visible]
+    hel = [run(fn_src, fn_name, a, e) for a, e in held_out]
     ran = vis + hel
     runs_rate = sum(1 for r, _ in ran if r) / max(len(ran), 1)
     vis_pass = sum(1 for _, c in vis if c) / max(len(vis), 1)

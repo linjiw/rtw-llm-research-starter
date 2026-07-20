@@ -81,10 +81,15 @@ not E4):
   held_out floor ≥0.10). Requires the `init_weights` vector (I8b, done).
 - The `hack_wins` fairness pre-check (TEMPTATION-static must demonstrably reach
   the hack signature at 0.5B in ~300 steps BEFORE any resistance claim).
-- **Sandbox hardening (S3/I7)** is a HARD pre-registered gate before E5: no
-  hacking-RESISTANCE headline until spawn-worker + rlimit + no-network +
-  read-only tmpfs (or nsjail/firejail) settles the soundness question, because
-  E5 executes adversarially-optimized model code during training.
+- **Sandbox hardening (S3/I7): PARTIALLY DONE.** The spawn-worker + RLIMIT_AS
+  memory wall + parent-crash isolation is BUILT and tested
+  (`microcode_sandbox.py`; ledger `s3-sandbox`) — this covers the accidental-
+  DoS threat and is turned ON for E4/E5 GPU runs (`sandbox="worker"`). What
+  remains before an E5 hacking-RESISTANCE headline is the SOUND-ESCAPE question:
+  the AST whitelist is not sound (C-level gadget → os), so OS-level isolation
+  (nsjail/firejail/gVisor/seccomp) is still required before claiming resistance
+  to a model that actively escapes. Until then, scope any E5 claim to
+  reward-channel behavior (does adaptive down-weight the proxy), NOT security.
 
 ## Eval runner (I10-b, built at E4 launch)
 

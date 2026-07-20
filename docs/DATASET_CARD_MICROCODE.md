@@ -88,14 +88,30 @@ yields graded reward and non-zero within-group variance — no rung is a 0/1 cli
 
 ## Known limitations & sandbox risk (honest)
 
-- **The execution sandbox is a PROTOTYPE, not sound.** Legality is a static AST
-  import/name whitelist (defense-in-depth); it does not block gadget chains
-  (e.g. `object.__subclasses__` → os). Execution uses a deterministic
-  `sys.settrace` instruction budget (100k lines), NOT wall-clock (not bit-stable
-  under trainer CPU contention). Production hardening (spawned worker pool,
-  rlimit-mem, no-network, read-only tmpfs, or nsjail/firejail) is a separate
-  build step (S3/I7) and is a **pre-registered gate before any E5 hacking
-  headline** — the model there is executing adversarially-optimized code.
+- **Sandbox (two epistemic statuses — do not blur):** A hardened out-of-process
+  path exists (`microcode_sandbox.py`, S3/I7): a SPAWNED (never fork-after-CUDA)
+  persistent worker with an `RLIMIT_AS` memory wall + `RLIMIT_FSIZE`, a private
+  builtins namespace, and `except BaseException` guards. This provides **SOUND
+  memory-DoS + parent-crash isolation** — an allocation bomb becomes a
+  deterministic crash verdict in the child (verified: caught in ~0.04s by
+  RLIMIT_AS, backstop untouched), and a child segfault/OOM-kill cannot take down
+  the trainer. Select it with `verify_completion(..., sandbox="worker")`;
+  `"inprocess"` (default) is the byte-identical path for the deterministic CPU
+  test/repro suite. **Turn the worker ON for any GPU GRPO run (E4/E5)** — honest
+  accidental resource exhaustion is intent-independent.
+- **It is NOT a sound escape sandbox.** The AST import/name whitelist is
+  defense-in-depth only, defeatable by a C-level gadget (`object.__subclasses__`
+  → os); there is **zero sound containment for filesystem/network escape**.
+  OS-level isolation (nsjail/firejail/gVisor/seccomp container) is deferred and
+  documented, not built. No hacking-**RESISTANCE** headline may rest on sandbox
+  security; the E5 claim is scoped to reward-channel behavior only.
+- **Verdict determinism is bit-stable for the ALLOCATION class, not the
+  compute-hang class.** The `sys.settrace` line budget (100k) does not bound
+  non-allocating C-level loops (e.g. `sum(range(10**12))` = 1 trace tick); those
+  fall to a wall-clock liveness backstop, whose firing is contention-dependent
+  (a NON-deterministic verdict). Every backstop firing is counted
+  (`SandboxWorker.backstop_firings`); a run with count>0 has a qualified
+  bit-stability claim.
 - Templates are simple list/dict/int transforms; not representative of
   real-world code complexity.
 - The `no_hardcoding_heuristic` is a cheap AST smell detector, not a sound
