@@ -28,6 +28,7 @@ experiment rounds as needed.
 | [LITERATURE_POSITIONING.md](LITERATURE_POSITIONING.md) | related work positioning (see RESEARCH_AGENDA_20260720.md Part 4 for the verified 8-field landscape) |
 | [NEXT_IDEAS.md](NEXT_IDEAS.md) | longer-horizon extensions (joint curricula, code harness, learned teacher) |
 | [DATASET_CARD.md](DATASET_CARD.md) | Countdown dataset card |
+| [DATASET_CARD_MICROCODE.md](DATASET_CARD_MICROCODE.md) | MicroCode (Paper-2) dataset card: splits, reward channels, teacher/curriculum wiring, sandbox-risk statement |
 | [HARDWARE_AND_INFRA.md](HARDWARE_AND_INFRA.md) | hardware notes (see also `outputs/STORAGE_LAYOUT.md`) |
 
 ## Experiment rounds (archival — plan → result → safe conclusion)
