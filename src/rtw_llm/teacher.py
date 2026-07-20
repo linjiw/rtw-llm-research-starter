@@ -36,6 +36,40 @@ STABLE_CAPS = {
 STABLE_FLOORS_V12 = {**STABLE_FLOORS, "valid_expression": 0.30}
 STABLE_CAPS_V12 = {**STABLE_CAPS, "valid_expression": 0.45}
 
+# ---- MicroCode (Paper-2) teacher tables (S2/I8) ----
+# Aux-key set finalized by the CPU prune probe (scripts/22_microcode_aux_prune.py):
+# six legality-scaffold channels are perfectly collinear (keep only
+# valid_expression, the curriculum gate); brevity is dead. Load-bearing dense
+# channels: runs_without_error, visible_pass_rate (the HACKABLE PROXY),
+# no_hardcoding_heuristic. held_out_pass_rate is the SOURCE OF TRUTH — it is the
+# primary via `correct` and is NEVER a weighted training wheel here.
+# These are opt-in: pass them via TeacherConfig(aux_keys=/stable_floors=/
+# stable_caps=). Countdown AUX_KEYS/STABLE_FLOORS/STABLE_CAPS are UNTOUCHED.
+MICRO_AUX_KEYS = [
+    "valid_expression",
+    "runs_without_error",
+    "visible_pass_rate",
+    "no_hardcoding_heuristic",
+]
+
+# HONEST budget (E4). visible_pass_rate is the proxy: a LOW floor (< 0.10, below
+# the ~0.295 need-driven crossover) so adaptive_stable retains headroom to
+# down-weight it as its EMA saturates (the E5 mechanism); the true-signal
+# channels carry the floor mass. valid_expression is the gate (needs early
+# pressure). no_hardcoding is the anti-cheat true signal.
+MICRO_STABLE_FLOORS = {
+    "valid_expression": 0.16,
+    "runs_without_error": 0.12,
+    "visible_pass_rate": 0.05,
+    "no_hardcoding_heuristic": 0.10,
+}
+# No per-key caps below max_weight by default (proxy cap belongs to the E5
+# TEMPTATION pre-registration, not the HONEST budget). Empty => every key keeps
+# the global max_weight ceiling.
+MICRO_STABLE_CAPS: dict[str, float] = {}
+# Aux budget for the 4-key MicroCode set (cf. Countdown's 1.20 over 6 keys).
+MICRO_TARGET_WEIGHT_SUM = 0.80
+
 VALID_STRATEGIES = {
     "adaptive",
     "adaptive_stable",
