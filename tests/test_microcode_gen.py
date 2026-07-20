@@ -24,6 +24,14 @@ def test_every_rung_has_a_template():
     assert all(r in TEMPLATES_BY_RUNG for r in RUNG_TIER)
 
 
+def test_train_library_has_at_least_24_templates_4_per_rung():
+    train = [t for t in TEMPLATES if t.family == "train"]
+    assert len(train) >= 24, len(train)
+    from collections import Counter
+    per_rung = Counter(t.rung for t in train)
+    assert all(per_rung[r] >= 4 for r in range(6)), dict(per_rung)
+
+
 def test_references_are_solvable_by_construction_across_tiers():
     # The critical metamorphic check: every generated task's reference impl
     # must pass its OWN visible + held-out tests through the verifier, else a

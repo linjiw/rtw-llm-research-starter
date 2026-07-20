@@ -120,12 +120,89 @@ def _ref_run_length(nums):
     return out
 
 
+# ---- I6-b: additional train references (reach 4 per rung; pure, JSON-safe) ----
+# Serialization guardrails: return only ints/bools/None/list/dict-of-list — NEVER
+# a set (PYTHONHASHSEED-ordered, not JSON-serializable) or a tuple (JSONL round-
+# trips to a list, breaking ==). Never mutate the input arg.
+
+
+def _ref_square(x):
+    return x * x
+
+
+def _ref_first(xs):
+    return xs[0] if xs else None
+
+
+def _ref_min_two(a, b):
+    return a if a < b else b
+
+
+def _ref_count_even(nums):
+    return sum(1 for x in nums if x % 2 == 0)
+
+
+def _ref_max_list(nums):
+    return max(nums) if nums else None
+
+
+def _ref_prefix_sum(nums):
+    out, acc = [], 0
+    for x in nums:
+        acc += x
+        out.append(acc)
+    return out
+
+
+def _ref_running_min(nums):
+    out, m = [], None
+    for x in nums:
+        m = x if m is None else (x if x < m else m)
+        out.append(m)
+    return out
+
+
+def _ref_unique_sorted(nums):
+    # sorted(set(...)) materialized to a LIST (never return the set).
+    return sorted(set(nums))
+
+
+def _ref_group_by_sign(nums):
+    return {
+        "neg": [x for x in nums if x < 0],
+        "zero": [x for x in nums if x == 0],
+        "pos": [x for x in nums if x > 0],
+    }
+
+
+def _ref_is_sorted_asc(nums):
+    return all(nums[i] <= nums[i + 1] for i in range(len(nums) - 1))
+
+
+def _ref_merge_sorted(a, b):
+    out, i, j = [], 0, 0
+    while i < len(a) and j < len(b):
+        if a[i] <= b[j]:
+            out.append(a[i])
+            i += 1
+        else:
+            out.append(b[j])
+            j += 1
+    out.extend(a[i:])
+    out.extend(b[j:])
+    return out
+
+
 def _rint(rng, lo=-9, hi=9):
     return rng.randint(lo, hi)
 
 
 def _rlist(rng, lo=0, hi=8):
     return [rng.randint(-9, 9) for _ in range(rng.randint(lo, hi))]
+
+
+def _rsorted(rng, lo=0, hi=6):
+    return sorted(_rlist(rng, lo, hi))
 
 
 TEMPLATES: list[Template] = [
@@ -180,6 +257,49 @@ TEMPLATES: list[Template] = [
              "pairs for consecutive equal elements.",
              _ref_run_length, lambda r: (_rlist(r, 2, 7),),
              lambda r: [([],), ([5],), ([1, 1, 2, 2, 2],), ([3, 3, 3],), ([1, 2, 1],)]),
+    # ---- I6-b: additional train templates (4 per rung) ----
+    Template("square", 0, "square_it", ["x"], "Return {p0} multiplied by itself.",
+             _ref_square, lambda r: (_rint(r),),
+             lambda r: [(0,), (1,), (-1,), (-7,), (9,)]),
+    Template("first", 0, "first_elem", ["xs"], "Return the first element of {p0}, or None if empty.",
+             _ref_first, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([7],), ([1, 2, 3],), ([-1, -2],), ([5, 5],)]),
+    Template("min_two", 1, "min_of_two", ["a", "b"], "Return the smaller of {p0} and {p1}.",
+             _ref_min_two, lambda r: (_rint(r), _rint(r)),
+             lambda r: [(5, 5), (-1, -9), (0, 3), (-4, 4), (8, 8)]),
+    Template("count_even", 2, "count_even", ["nums"],
+             "Return how many elements of {p0} are even.",
+             _ref_count_even, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([1, 3, 5],), ([-4, -2, 0],), ([0],), ([2, 2, 3],)]),
+    Template("max_list", 2, "max_of_list", ["nums"],
+             "Return the largest element of {p0}, or None if empty.",
+             _ref_max_list, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([5, 5, 5],), ([-1, -9, -3],), ([7],), ([2, 8, 8, 1],)]),
+    Template("prefix_sum", 3, "prefix_sums", ["nums"],
+             "Return the list of running cumulative sums of {p0}.",
+             _ref_prefix_sum, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([5],), ([1, -1, 2],), ([0, 0, 0],), ([-3, -4],)]),
+    Template("running_min", 3, "running_min", ["nums"],
+             "Return a list where position i is the min of {p0}[0..i].",
+             _ref_running_min, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([5],), ([3, 1, 2, 0],), ([1, 2, 3],), ([-1, -5, -2],)]),
+    Template("unique_sorted", 4, "unique_sorted", ["nums"],
+             "Return the distinct elements of {p0} sorted in ascending order.",
+             _ref_unique_sorted, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([2, 2, 2],), ([3, 1, 2, 1],), ([5, 4],), ([-1, -1, 0],)]),
+    Template("group_by_sign", 4, "group_by_sign", ["nums"],
+             "Return a dict with keys 'neg', 'zero', 'pos' mapping to the elements "
+             "of {p0} of that sign, in order.",
+             _ref_group_by_sign, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([0, 0],), ([-1, -2],), ([1, 2],), ([-1, 0, 3],)]),
+    Template("is_sorted", 5, "is_sorted_asc", ["nums"],
+             "Return True if {p0} is non-decreasing (each element <= the next), else False.",
+             _ref_is_sorted_asc, lambda r: (_rsorted(r, 1, 6),),
+             lambda r: [([],), ([5],), ([1, 1, 2],), ([1, 3, 2],), ([3, 2, 1],), ([2, 2, 2],)]),
+    Template("merge_sorted", 5, "merge_sorted", ["a", "b"],
+             "Given two ascending lists {p0} and {p1}, return their merged ascending list.",
+             _ref_merge_sorted, lambda r: (_rsorted(r, 1, 5), _rsorted(r, 1, 5)),
+             lambda r: [([], []), ([], [1, 2]), ([1, 2], []), ([1, 1], [1, 1]), ([1, 3, 5], [2, 4])]),
 ]
 
 TEMPLATES_BY_RUNG: dict[int, list[Template]] = {}
