@@ -131,3 +131,20 @@ def test_fn_names_randomized_across_tasks():
     spec = difficulty_spec("easy")
     names = {random_solvable_task(rng, spec, i, "t")["fn_name"] for i in range(20)}
     assert len(names) > 1  # not a single memorizable identity
+
+
+def test_frozen_task_ids_resolve_in_committed_dataset():
+    # I10 pre-registration guard: every frozen task ID must exist in the
+    # committed jsonl, so dataset regeneration drift is caught before E4.
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for split in ["validation", "test_in_dist"]:
+        data = root / "data" / "microcode" / f"{split}.jsonl"
+        frozen = root / "data" / "microcode" / f"frozen_microcode_task_ids_{split}_limit50.txt"
+        if not (data.exists() and frozen.exists()):
+            continue  # dataset not materialized in this checkout
+        have = {json.loads(line)["id"] for line in open(data)}
+        ids = [x.strip() for x in open(frozen) if x.strip()]
+        assert len(ids) == 50
+        assert all(i in have for i in ids), split

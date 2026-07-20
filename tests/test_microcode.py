@@ -3,7 +3,10 @@ import json
 import random
 
 from rtw_llm.microcode import (
+    MICRO_SELECTOR_WEIGHTS,
+    _MICRO_SELECTOR_FORBIDDEN,
     extract_function_source,
+    microcode_practical_score,
     score_completion,
     static_legality,
     verify_completion,
@@ -73,6 +76,21 @@ def test_reverification_is_bit_stable_across_json_roundtrip_and_repeats():
         task_rt = json.loads(json.dumps(task))
         c3 = verify_completion(comp, task_rt).to_components()
         assert c1 == c3, task["template"]
+
+
+def test_microcode_selector_never_uses_held_out_truth():
+    # Selector-hygiene invariant (analog of the Countdown practical_score guard):
+    # the frozen MicroCode selector must NOT depend on held_out_pass_rate /
+    # correct / exact_correct. Prove it: perturbing only those keys leaves the
+    # score unchanged; and none appears in the weight table.
+    for k in _MICRO_SELECTOR_FORBIDDEN:
+        assert k not in MICRO_SELECTOR_WEIGHTS
+    base = {"valid_expression": 1.0, "runs_without_error": 1.0,
+            "visible_pass_rate": 0.5, "no_hardcoding_heuristic": 1.0,
+            "held_out_pass_rate": 0.0, "correct": 0.0, "exact_correct": 0.0}
+    s0 = microcode_practical_score(base)
+    hacked = {**base, "held_out_pass_rate": 1.0, "correct": 1.0, "exact_correct": 1.0}
+    assert microcode_practical_score(hacked) == s0  # truth changes -> score unchanged
 
 
 def test_to_components_contract_pins_primary_and_teacher_aux_keys():

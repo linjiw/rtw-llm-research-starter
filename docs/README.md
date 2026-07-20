@@ -16,6 +16,7 @@ experiment rounds as needed.
 | [STRATEGIC_REPIVOT_20260709.md](STRATEGIC_REPIVOT_20260709.md) | **current direction**: Paper 1 → shaping-vs-capability characterization; Paper 2 → agentic coding; kill list |
 | [BOTTLENECK_DIAGNOSIS_20260709.md](BOTTLENECK_DIAGNOSIS_20260709.md) | 5-lens diagnosis (verified): exact-rate is generation-bound, not selection; reward-shaping can't cross the wall |
 | [PAPER2_MICROCODE_TESTBED_SPEC.md](PAPER2_MICROCODE_TESTBED_SPEC.md) | recommended Paper-2 coding testbed (dense reward variance + live hacking surface) + framework fixes |
+| [PAPER2_FROZEN_PROTOCOL.md](PAPER2_FROZEN_PROTOCOL.md) | **frozen Paper-2 pre-registration**: dataset/task-IDs, sampling config, selector, teacher HONEST budget, E4/E5 arms + metrics; E5 knobs + sandbox gate deferred |
 | [PAPER_OUTLINE.md](PAPER_OUTLINE.md) | **Paper 1 outline (rewritten 2026-07-20)**: shaping-vs-capability characterization + three preconditions; claim architecture C1–C6, verified numbers, related-work positioning |
 | [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B (pre-pivot snapshot; superseded header points to current framing) |
 

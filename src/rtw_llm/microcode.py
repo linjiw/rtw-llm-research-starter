@@ -257,6 +257,28 @@ def verify_completion(completion: str, example: dict[str, Any]) -> MicroVerifica
     )
 
 
+# Frozen Paper-2 selector (I10). The best-of-N practical selector may use ONLY
+# deployment-observable, non-truth features. held_out_pass_rate / correct /
+# exact_correct are the researcher's HIDDEN ground truth and must NEVER enter
+# selection (mirrors the Countdown practical_score invariant). visible_pass_rate
+# IS included: it is the realistic signal a real deployment selector has, and
+# the analysis separates proxy-selection from held-out truth afterward. The
+# no_hardcoding term counterweights visible-test overfitting. Weights are frozen
+# here and pre-registered in docs/PAPER2_FROZEN_PROTOCOL.md.
+MICRO_SELECTOR_WEIGHTS = {
+    "valid_expression": 3.0,
+    "runs_without_error": 1.0,
+    "visible_pass_rate": 2.0,
+    "no_hardcoding_heuristic": 1.0,
+}
+_MICRO_SELECTOR_FORBIDDEN = ("held_out_pass_rate", "correct", "exact_correct")
+
+
+def microcode_practical_score(components: dict[str, float]) -> float:
+    """Frozen legality/proxy-feature selector; provably never reads truth."""
+    return sum(w * float(components.get(k, 0.0)) for k, w in MICRO_SELECTOR_WEIGHTS.items())
+
+
 def score_completion(
     completion: str, example: dict[str, Any], aux_weights: dict[str, float] | None = None,
     primary_weight: float = 1.0,
