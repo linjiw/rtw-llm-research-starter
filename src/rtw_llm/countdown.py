@@ -423,7 +423,7 @@ def _combine(a: ExprNode, b: ExprNode, op: str) -> ExprNode | None:
     raise ValueError(op)
 
 
-def random_solvable_task(
+def random_solvable_task_legacy_v1(
     rng: random.Random,
     n_numbers: int,
     allowed_ops: list[str],
@@ -433,7 +433,7 @@ def random_solvable_task(
     max_target: int = 999,
     max_attempts: int = 10_000,
 ) -> dict[str, Any]:
-    """Generate a task by sampling a random expression tree, so it is solvable by construction."""
+    """Replay the historical generator, including its leftover-node defect."""
     for _ in range(max_attempts):
         leaves = [rng.randint(min_number, max_number) for _ in range(n_numbers)]
         nodes = [ExprNode(Fraction(n, 1), str(n), (n,)) for n in leaves]
@@ -464,6 +464,58 @@ def random_solvable_task(
         numbers = list(final.numbers)
         rng.shuffle(numbers)
         # Validate after shuffling numbers.
+        vr = verify_expression(final.expr, numbers, target, allowed_ops)
+        if vr.correct:
+            return {
+                "numbers": numbers,
+                "target": target,
+                "allowed_ops": allowed_ops,
+                "solution": final.expr,
+            }
+    raise RuntimeError("Failed to generate a solvable task. Try relaxing bounds.")
+
+
+def random_solvable_task(
+    rng: random.Random,
+    n_numbers: int,
+    allowed_ops: list[str],
+    min_number: int = 1,
+    max_number: int = 20,
+    min_target: int = 1,
+    max_target: int = 999,
+    max_attempts: int = 10_000,
+) -> dict[str, Any]:
+    """Generate a verifier-valid task using exactly the requested operand count."""
+    for _ in range(max_attempts):
+        leaves = [rng.randint(min_number, max_number) for _ in range(n_numbers)]
+        nodes = [ExprNode(Fraction(n, 1), str(n), (n,)) for n in leaves]
+        rng.shuffle(nodes)
+        attempt_failed = False
+        while len(nodes) > 1:
+            i = rng.randrange(len(nodes))
+            a = nodes.pop(i)
+            j = rng.randrange(len(nodes))
+            b = nodes.pop(j)
+            if rng.random() < 0.5:
+                a, b = b, a
+            op = rng.choice(allowed_ops)
+            combined = _combine(a, b, op)
+            if combined is None or abs(combined.value) > max_target * 5:
+                attempt_failed = True
+                break
+            nodes.append(combined)
+        if attempt_failed or len(nodes) != 1:
+            continue
+        final = nodes[0]
+        if len(final.numbers) != n_numbers:
+            continue
+        if final.value.denominator != 1:
+            continue
+        target = int(final.value)
+        if not (min_target <= target <= max_target):
+            continue
+        numbers = list(final.numbers)
+        rng.shuffle(numbers)
         vr = verify_expression(final.expr, numbers, target, allowed_ops)
         if vr.correct:
             return {

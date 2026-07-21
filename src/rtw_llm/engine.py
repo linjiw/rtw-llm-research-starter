@@ -74,6 +74,7 @@ class HFEngine:
         self,
         model_name: str,
         adapter_path: str | None = None,
+        model_revision: str | None = None,
         device: str = "auto",
         gen_mode: str = "loop",
     ):
@@ -104,7 +105,13 @@ class HFEngine:
         if use_cuda:
             model_kwargs["device_map"] = "auto"
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name,
+            trust_remote_code=True,
+            revision=model_revision,
+        )
+        if model_revision:
+            model_kwargs["revision"] = model_revision
         self.model = AutoModelForCausalLM.from_pretrained(model_name, **model_kwargs)
         if adapter_path:
             from peft import PeftModel
@@ -153,10 +160,25 @@ class HFEngine:
             return self._generate_batched(prompts, config)
         return self._generate_loop(prompts, config)
 
+    def last_generation_metadata(self) -> list[dict[str, Any]]:
+        """Exact token counts and termination reasons from the last generate call."""
+        return [dict(value) for value in getattr(self, "_last_generation_metadata", [])]
+
+    def _metadata_for_tokens(self, tokens: Any, max_new_tokens: int) -> dict[str, Any]:
+        token_ids = [int(value) for value in tokens.tolist()]
+        ended_with_eos = bool(token_ids and token_ids[-1] in self.eos_token_ids)
+        hit_cap = len(token_ids) >= max_new_tokens and not ended_with_eos
+        return {
+            "generated_token_count": len(token_ids),
+            "finish_reason": "length" if hit_cap else ("eos" if ended_with_eos else "other"),
+            "completion_hit_cap": hit_cap,
+        }
+
     def _generate_loop(self, prompts: list[str], config: GenerationConfigLite) -> list[str]:
         import torch
 
         outputs: list[str] = []
+        metadata: list[dict[str, Any]] = []
         for prompt in prompts:
             inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
             with torch.no_grad():
@@ -170,6 +192,8 @@ class HFEngine:
                 )
             new_tokens = gen[0][inputs["input_ids"].shape[1] :]
             outputs.append(self.tokenizer.decode(new_tokens, skip_special_tokens=True))
+            metadata.append(self._metadata_for_tokens(new_tokens, config.max_new_tokens))
+        self._last_generation_metadata = metadata
         return outputs
 
     def _generate_batched(self, prompts: list[str], config: GenerationConfigLite) -> list[str]:
@@ -187,9 +211,14 @@ class HFEngine:
                 top_p=config.top_p if config.do_sample else None,
                 pad_token_id=self.batch_pad_token_id,
             )
+        new_token_rows = slice_new_tokens(gen, padded_input_len, self.batch_pad_token_id)
+        self._last_generation_metadata = [
+            self._metadata_for_tokens(new_tokens, config.max_new_tokens)
+            for new_tokens in new_token_rows
+        ]
         return [
             self.tokenizer.decode(new_tokens, skip_special_tokens=True)
-            for new_tokens in slice_new_tokens(gen, padded_input_len, self.batch_pad_token_id)
+            for new_tokens in new_token_rows
         ]
 
 
@@ -208,4 +237,15 @@ class VLLMEngine:
             max_tokens=config.max_new_tokens,
         )
         outputs = self.llm.generate(prompts, params)
+        self._last_generation_metadata = [
+            {
+                "generated_token_count": len(out.outputs[0].token_ids),
+                "finish_reason": out.outputs[0].finish_reason,
+                "completion_hit_cap": out.outputs[0].finish_reason == "length",
+            }
+            for out in outputs
+        ]
         return [out.outputs[0].text for out in outputs]
+
+    def last_generation_metadata(self) -> list[dict[str, Any]]:
+        return [dict(value) for value in getattr(self, "_last_generation_metadata", [])]

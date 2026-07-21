@@ -200,5 +200,5 @@ def test_paired_overlap_refuses_mixed_generation_modes(tmp_path):
                 "candidates_path": run_dir / "candidates.jsonl",
             }
         )
-    with pytest.raises(ValueError, match="Generation-identity mismatch"):
+    with pytest.raises(ValueError, match="Evaluation-identity mismatch"):
         agg.paired_overlap(runs)

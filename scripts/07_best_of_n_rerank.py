@@ -13,9 +13,17 @@ from typing import Any
 import pandas as pd
 from tqdm import tqdm
 
+from rtw_llm.data_access import assert_countdown_data_access
 from rtw_llm.data import read_jsonl, write_jsonl
 from rtw_llm.engine import GenerationConfigLite, HFEngine, VLLMEngine
+from rtw_llm.provenance import (
+    build_run_identity,
+    verify_completed_run,
+    write_intent,
+    write_result,
+)
 from rtw_llm.rewards import metrics_for_completion
+from rtw_llm.seed_protocol import LEGACY_SEED_PROTOCOL, SEED_PROTOCOLS, TRUE_SEED_PROTOCOL
 
 
 SELECTED_METRIC_KEYS = [
@@ -163,6 +171,7 @@ def sampling_identity(config: dict[str, Any]) -> dict[str, Any]:
     identity = {
         "hf_gen_mode": mode,
         "model_name": config.get("model_name"),
+        "model_revision": config.get("model_revision"),
         "adapter_path": config.get("adapter_path"),
         "sampling_seed": config.get("sampling_seed"),
         "temperature": config.get("temperature"),
@@ -215,6 +224,21 @@ def is_complete(
     return actual_candidates == expected_candidates
 
 
+def is_strict_complete(output_dir: Path, requested_identity: dict[str, Any]) -> bool:
+    """A strict skip is allowed only after full manifest/artifact verification."""
+    has_manifest = (output_dir / "run_intent.json").exists() or (
+        output_dir / "run_result.json"
+    ).exists()
+    if not has_manifest:
+        return False
+    verify_completed_run(
+        output_dir,
+        requested_identity,
+        required_artifact_roles={"candidates", "metrics", "run_config", "summary"},
+    )
+    return True
+
+
 def count_completion_tokens(engine: Any, completion: str) -> int:
     tokenizer = getattr(engine, "tokenizer", None)
     if tokenizer is None:
@@ -234,9 +258,12 @@ def write_run_config(
     config = {
         "method": args.method,
         "training_seed": args.training_seed,
+        "training_protocol": args.training_protocol,
+        "experiment_protocol": args.experiment_protocol,
         "sampling_seed": args.seed,
         "split": args.split,
         "model_name": args.model_name,
+        "model_revision": args.model_revision,
         "adapter_path": args.adapter_path,
         "data_path": args.data_path,
         "task_ids_file": args.task_ids_file,
@@ -253,6 +280,9 @@ def write_run_config(
         "device": args.device,
         "hf_gen_mode": args.hf_gen_mode,
         "effective_generation_config": effective_generation_config,
+        "final_test_release_record": args.final_test_release_record,
+        "test_release_record": args.test_release_record,
+        "confirmation_ready_record": args.confirmation_ready_record,
     }
     (output_dir / "run_config.json").write_text(json.dumps(config, indent=2) + "\n")
 
@@ -260,6 +290,7 @@ def write_run_config(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="Qwen/Qwen2.5-0.5B-Instruct")
+    parser.add_argument("--model_revision", default=None)
     parser.add_argument("--adapter_path", default=None)
     parser.add_argument("--data_path", default="data/countdown/validation.jsonl")
     parser.add_argument("--task_ids_file", default=None)
@@ -288,9 +319,78 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--method", default=None)
     parser.add_argument("--training_seed", type=int, default=None)
+    parser.add_argument(
+        "--training_protocol",
+        choices=SEED_PROTOCOLS,
+        default=LEGACY_SEED_PROTOCOL,
+    )
     parser.add_argument("--split", default=None)
     parser.add_argument("--skip_if_complete", action="store_true")
+    parser.add_argument("--strict_provenance", action="store_true")
+    parser.add_argument("--final_test_release_record", default=None)
+    parser.add_argument("--test_release_record", default=None)
+    parser.add_argument("--experiment_protocol", default=None)
+    parser.add_argument("--confirmation_ready_record", default=None)
     args = parser.parse_args()
+
+    if args.final_test_release_record and not args.strict_provenance:
+        raise ValueError("Released final-test best-of-N requires --strict_provenance")
+    if args.final_test_release_record and (args.limit is not None or args.task_ids_file):
+        raise ValueError("Released final-test best-of-N forbids --limit and --task_ids_file")
+    if args.test_release_record and (args.limit is not None or args.task_ids_file):
+        raise ValueError("Released one-shot test best-of-N forbids --limit and --task_ids_file")
+    if args.test_release_record and not args.strict_provenance:
+        raise ValueError("Released one-shot test best-of-N requires --strict_provenance")
+    if args.training_protocol == TRUE_SEED_PROTOCOL and not args.strict_provenance:
+        raise ValueError("countdown-true-seeds-v2 evaluation requires --strict_provenance")
+    if args.strict_provenance and args.engine != "hf":
+        raise ValueError("Strict provenance currently supports only the hf engine")
+    n_values = parse_n_values(args.n_values)
+    max_n = args.max_n or max(n_values)
+    if max(n_values) > max_n:
+        raise ValueError(f"max --n_values {max(n_values)} exceeds --max_n {max_n}")
+    if args.experiment_protocol is not None:
+        from rtw_llm.v19_protocol import PROTOCOL_ID, validate_v19_eval_args
+
+        if args.experiment_protocol != PROTOCOL_ID:
+            raise ValueError(f"Unsupported experiment protocol: {args.experiment_protocol}")
+        validate_v19_eval_args({**vars(args), "n_values": n_values, "max_n": max_n})
+    repo_root = Path(__file__).resolve().parents[1]
+    if args.task_ids_file:
+        from rtw_llm.provenance import file_record
+        from rtw_llm.v19_protocol import (
+            CONFIRMATION_READY_RECORD,
+            PROTOCOL_DIR,
+            PROTOCOL_ID,
+            VIEW_FILES,
+            validate_confirmation_ready,
+        )
+
+        requested_ids = Path(args.task_ids_file)
+        if not requested_ids.is_absolute():
+            requested_ids = repo_root / requested_ids
+        confirm_ids = repo_root / PROTOCOL_DIR / VIEW_FILES["validation_confirm400"]
+        if requested_ids.is_file() and confirm_ids.is_file() and file_record(
+            requested_ids
+        ) == file_record(confirm_ids):
+            if args.experiment_protocol != PROTOCOL_ID:
+                raise ValueError("Confirmation task IDs require the registered v0.19 protocol")
+            if args.confirmation_ready_record is None:
+                raise ValueError("Confirmation task IDs require a readiness record")
+            if Path(args.confirmation_ready_record).as_posix() != CONFIRMATION_READY_RECORD.as_posix():
+                raise ValueError("Confirmation readiness record path is not registered")
+            validate_confirmation_ready(args.confirmation_ready_record, repo_root=repo_root)
+    assert_countdown_data_access(
+        args.data_path,
+        purpose="model_eval",
+        runner="07_best_of_n_rerank",
+        release_record=args.final_test_release_record,
+        test_release_record=args.test_release_record,
+        experiment_protocol=args.experiment_protocol,
+        ordered_task_ids_file=args.task_ids_file,
+        confirmation_ready_record=args.confirmation_ready_record,
+        repo_root=repo_root,
+    )
 
     random.seed(args.seed)
     try:
@@ -304,11 +404,6 @@ def main() -> None:
     except Exception:
         pass
 
-    n_values = parse_n_values(args.n_values)
-    max_n = args.max_n or max(n_values)
-    if max(n_values) > max_n:
-        raise ValueError(f"max --n_values {max(n_values)} exceeds --max_n {max_n}")
-
     if args.engine == "vllm" and args.hf_gen_mode != "loop":
         raise ValueError("--hf_gen_mode applies to the hf engine only")
 
@@ -320,6 +415,7 @@ def main() -> None:
         {
             "hf_gen_mode": args.hf_gen_mode,
             "model_name": args.model_name,
+            "model_revision": args.model_revision,
             "adapter_path": args.adapter_path,
             "sampling_seed": args.seed,
             "temperature": args.temperature,
@@ -329,17 +425,75 @@ def main() -> None:
             "prompt_field": args.prompt_field,
         }
     )
-    if args.skip_if_complete and is_complete(
-        output_dir, max_n=max_n, n_examples=len(examples), requested_identity=requested_identity
-    ):
-        print(json.dumps({"status": "skipped_complete", "output_dir": str(output_dir), "max_n": max_n}, indent=2))
-        return
+    provenance_identity = None
+    if args.strict_provenance:
+        input_files = {"data": args.data_path}
+        if args.task_ids_file:
+            input_files["ordered_task_ids"] = args.task_ids_file
+        if args.final_test_release_record:
+            input_files["final_test_release"] = args.final_test_release_record
+        if args.test_release_record:
+            input_files["test_release"] = args.test_release_record
+        if args.confirmation_ready_record:
+            input_files["confirmation_ready"] = args.confirmation_ready_record
+        provenance_identity = build_run_identity(
+            run_kind="best_of_n",
+            requested_args=vars(args),
+            resolved_config={
+                **requested_identity,
+                "n_values": n_values,
+                "max_n": max_n,
+                "n_examples": len(examples),
+                "engine": args.engine,
+                "device": args.device,
+            },
+            seed_roles={
+                "sampling_seed": args.seed,
+                "training_seed_label": args.training_seed,
+                "training_protocol": args.training_protocol,
+            },
+            input_files=input_files,
+            model_name=args.model_name,
+            adapter_path=args.adapter_path,
+            repo_root=repo_root,
+            model_revision=args.model_revision,
+        )
+    if args.skip_if_complete:
+        if args.strict_provenance:
+            if is_strict_complete(output_dir, provenance_identity):
+                print(
+                    json.dumps(
+                        {
+                            "status": "skipped_verified",
+                            "output_dir": str(output_dir),
+                            "max_n": max_n,
+                        },
+                        indent=2,
+                    )
+                )
+                return
+        if not args.strict_provenance and is_complete(
+            output_dir, max_n=max_n, n_examples=len(examples), requested_identity=requested_identity
+        ):
+            print(
+                json.dumps(
+                    {"status": "skipped_complete", "output_dir": str(output_dir), "max_n": max_n},
+                    indent=2,
+                )
+            )
+            return
+    if args.strict_provenance:
+        write_intent(output_dir, provenance_identity)
 
     engine = (
         VLLMEngine(args.model_name)
         if args.engine == "vllm"
         else HFEngine(
-            args.model_name, args.adapter_path, device=args.device, gen_mode=args.hf_gen_mode
+            args.model_name,
+            args.adapter_path,
+            model_revision=args.model_revision,
+            device=args.device,
+            gen_mode=args.hf_gen_mode,
         )
     )
     gen_config = GenerationConfigLite(
@@ -362,8 +516,18 @@ def main() -> None:
         batch = expanded[start : start + args.batch_size]
         prompts = [ex[args.prompt_field] for ex, _ in batch]
         completions = engine.generate(prompts, gen_config)
-        for (ex, candidate_index), completion in zip(batch, completions):
+        generation_metadata = (
+            engine.last_generation_metadata()
+            if hasattr(engine, "last_generation_metadata")
+            else [{} for _ in completions]
+        )
+        if len(generation_metadata) != len(completions):
+            raise RuntimeError("Generation metadata length does not match completions")
+        for (ex, candidate_index), completion, generation_meta in zip(
+            batch, completions, generation_metadata
+        ):
             metrics = metrics_for_completion(completion, ex)
+            exact_token_count = generation_meta.get("generated_token_count")
             row = {
                 "id": ex["id"],
                 "difficulty": ex["difficulty"],
@@ -375,7 +539,16 @@ def main() -> None:
                 "raw_generation": completion,
                 "completion": completion,
                 "extracted_expression": metrics.get("expression"),
-                "completion_token_count": count_completion_tokens(engine, completion),
+                "completion_token_count": (
+                    int(exact_token_count)
+                    if exact_token_count is not None
+                    else count_completion_tokens(engine, completion)
+                ),
+                "token_count_source": (
+                    "generated_token_ids" if exact_token_count is not None else "decoded_retokenized"
+                ),
+                "finish_reason": generation_meta.get("finish_reason"),
+                "completion_hit_cap": generation_meta.get("completion_hit_cap"),
                 "metrics": metrics,
                 "practical_score": practical_score(metrics),
                 "selected_by_practical_n": [],
@@ -401,6 +574,7 @@ def main() -> None:
     report.update(
         {
             "model_name": args.model_name,
+            "model_revision": args.model_revision,
             "adapter_path": args.adapter_path,
             "data_path": args.data_path,
             "task_ids_file": args.task_ids_file,
@@ -410,6 +584,8 @@ def main() -> None:
             "max_new_tokens": args.max_new_tokens,
             "seed": args.seed,
             "training_seed": args.training_seed,
+            "training_protocol": args.training_protocol,
+            "experiment_protocol": args.experiment_protocol,
             "method": args.method,
             "split": args.split,
             "max_n": max_n,
@@ -433,6 +609,17 @@ def main() -> None:
         for selector in ["practical_selected", "oracle_selected"]:
             flat_rows.append({"n": int(n), "selector": selector, **result[selector]})
     pd.DataFrame(flat_rows).to_csv(output_dir / "summary.csv", index=False)
+    if args.strict_provenance:
+        write_result(
+            output_dir,
+            artifact_paths={
+                "candidates": output_dir / "candidates.jsonl",
+                "metrics": output_dir / "metrics.json",
+                "run_config": output_dir / "run_config.json",
+                "summary": output_dir / "summary.csv",
+            },
+            observations={"wall_clock_seconds": wall_clock_seconds},
+        )
     print(json.dumps(report, indent=2))
 
 

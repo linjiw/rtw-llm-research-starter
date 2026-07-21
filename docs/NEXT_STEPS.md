@@ -1,12 +1,72 @@
 # Next Steps
 
-Updated: 2026-07-09 (~23:50 UTC, after the v0.13 verdict). This is the
+Updated: 2026-07-10 (after the v0.19 production handoff audit). This is the
 concrete execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`,
 results land in `EXPERIMENT_LEDGER.md`.
 
-## HEADLINE: v0.13 SFT-warmup → KEEP, decisively (ledger `v0.13-sft`)
+## PROTOCOL GATE (supersedes the GPU queue below)
 
-Both splits, seed 0, frozen protocol, scored by the pre-registered
+The v0.14 audit found that historical `--seed N` GRPO runs varied the teacher
+seed but left the trainer loop at TRL's default 42; fresh-LoRA initialization
+also occurred before TRL applied that seed. Existing artifacts are now labeled
+`countdown-legacy-v1`, not true multi-seed evidence.
+
+Current order, one additive iteration at a time:
+
+1. ~~Explicit SFT/GRPO seed contracts + pre-model seeding~~ **DONE, KEEP** —
+   `docs/V14_SEED_SEMANTICS_PROTOCOL_PLAN.md`; 117 tests, Ruff clean.
+2. ~~Write-once/content-addressed run intent + result manifests~~ **DONE,
+   KEEP** — `docs/V15_RUN_PROVENANCE_MANIFEST_PLAN.md`; 131 tests, Ruff clean.
+3. ~~Read-only dataset overlap/reproducibility audit~~ **DONE — FAIL/BLOCK**.
+   Legacy has 39 difficulty-count defects plus cross-split leakage; artifact:
+   `docs/artifacts/countdown_legacy_v1_audit.json`. Frozen data remain unchanged.
+4. ~~Task-clustered statistical analysis replacing candidate-pseudoreplicated
+   p-values~~ **DONE, KEEP (infra)** — 170 tests, independent review CLEAR.
+   The tracked pooled p-values are labeled invalid; raw banks are absent, so
+   legacy clustered intervals are unavailable.
+5. ~~Define a new globally disjoint Countdown-v2 dataset protocol, fix the
+   leftover-node generator defect, and reserve an untouched final test~~
+   **DONE — AUDIT ELIGIBLE, KEEP**. 7,500 tasks, zero exact/loose overlap,
+   byte-identical replay, legacy hashes unchanged, final test sealed/unreleased.
+6. ~~Pre-register and review the smallest complete within-v2 baseline reset.~~
+   **DONE — DESIGN CLEAR, IMPLEMENTED.** Protocol
+   `countdown-v19-within-v2-reset-v1` freezes 16 model states, true seeds
+   0/1/2, dev100/confirm400, practical reranked exact@8, task-cluster inference,
+   batched-HF identity, production runtime/launch locks, and technical one-shot
+   test access. Never mix legacy-v1 and v2 banks.
+7. ~~Commit the reviewed v0.19 implementation and run the bounded local MPS
+   preflight.~~ **DONE — INFRASTRUCTURE PASS.** Commit `5b4446c`; SFT, fresh
+   GRPO, SFT→GRPO continuation, strict manifests, separate reward logs, and two
+   dev-ID batched evaluations all completed. The one-step/two-generation GRPO
+   groups had zero variance, which is allowed only for this infrastructure
+   smoke; production health requires observed group variance.
+8. **NEXT:** capture and commit a homogeneous one-GPU CUDA environment lock and
+   launch record before production seed 0. Production remains blocked here:
+   this host has MPS but no CUDA. Artifact:
+   `docs/artifacts/v19_mps_preflight.json`. The operator-safe stage order,
+   clean-checkout bootstrap, commit-before-compute rule, recovery policy, and
+   held-out access boundaries are frozen in
+   `docs/V19_CUDA_PRODUCTION_RUNBOOK.md`. Dry-run generation of the seed-0
+   train/dev/score commands and the protocol audit pass on this checkout.
+
+The externally running v13/OOD chain may finish as legacy evidence, but it is
+not a substitute for corrected-v2 seed confirmation. Do not launch the queued
+harness-shift or MicroCode base probe yet.
+
+Corrected-v2 data are available under `data/countdown_v2/`; v0.19 has frozen the
+within-v2 matrix and analysis. Production launch now additionally requires the
+committed CUDA environment lock and USD/GPU-hour launch record. The final test
+and one-shot in-distribution test both remain blocked and have no release
+records.
+
+Everything below this gate is historical legacy-v1 planning and interpretation,
+not an active launch queue. In particular, this checkout does not contain the
+raw v0.9/v0.13 candidate banks or the claimed running v13/OOD chain, so its
+external state cannot be inferred or resumed safely from repository contents.
+
+## LEGACY HEADLINE: v0.13 SFT-warmup had a large exploratory signal
+
+Both splits, legacy run label 0, scored by the pre-registered
 `scripts/12_score_v13.py`: easy candidate legality 0.22 → **1.00** (incl.
 held-out-task subsets), P(exact|legal) 0.14 → **0.24–0.26**, oracle@8 = 
 rerank@8 = **0.44/0.50** vs stable ~0.10 (≈5× the measured ~9% ceiling),
@@ -15,11 +75,11 @@ medium/hard exacts (all novel expressions, zero verbatim-gold, non-overlap
 tasks). Guardrails all green: diversity ROSE 2.4×, cost DOWN, clip 0.000,
 GRPO not inert (+11 net oracle tasks over SFT-only), memorization bounded.
 
-**Program implication:** the generation wall is a trainable-DATA gap, not a
-0.5B architecture floor. Two reward-shaping strikes couldn't move what one
-epoch of 2000 gold completions + GRPO moved 5×. This is the
-shaping-vs-capability characterization's positive arm, with pre-registered
-guardrails. "Hard = capability floor" is re-scoped to RL-from-base.
+**Current interpretation:** this is a strong hypothesis-generating signal that
+the generation wall is a trainable-data gap, but it is not paper-ready evidence:
+the training/evaluation data leak, the historical runs are not true end-to-end
+seeds, and the raw banks needed for repaired clustered inference are absent.
+The effect must be re-established from scratch under corrected-v2.
 
 ### v0.13 follow-up queue (updated ~00:30 UTC 2026-07-10)
 
@@ -27,16 +87,15 @@ guardrails. "Hard = capability floor" is re-scoped to RL-from-base.
    base 0.02 → stable 0.10 → SFT-only 0.32 → SFT+GRPO 0.50. Both stages
    contribute on both splits; SFT supplies the bigger jump, GRPO adds
    +0.18–0.22 absolute.
-2. **RUNNING (one background task, sequential):** v0.13 seeds 1/2
+2. **LEGACY DOC CLAIM; NOT PRESENT IN THIS CHECKOUT:** v0.13 run labels 1/2
    (`scripts/run_v13_seeds12.sh` → `outputs/logs/v13_seeds12.log`; SFT +
    GRPO + frozen best-of-N per seed, then 3-seed scoring to
    `outputs/v13_score_seeds012_*.json`), followed by the OOD eval
    (`scripts/run_ood_eval.sh` → `outputs/logs/ood_eval.log`, includes the
    v13sft arm + mandatory base arm). ~6–8 h total.
-3. **When they land:** fill ledger rows `v13-seeds12` and `ood-eval`; the
-   v13 3-seed check is confirmatory (seed-0 discordants 16–23-vs-0–2 are far
-   beyond seed noise, but the program standard applies); OOD is the open
-   question — did SFT overfit the 3–5-number/4-op envelope?
+3. Do not call any such legacy panel confirmatory. If externally retained raw
+   banks are restored with hashes, v0.17 can report an exploratory observed-run
+   panel. Corrected-v2 confirmation requires new true seeds and clean data.
 4. **Paper integration** after seeds 1/2: update
    `CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md` with the
    shaping-vs-capability contrast (2 strikes vs 5×) — pending the escalated

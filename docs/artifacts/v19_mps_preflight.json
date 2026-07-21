@@ -1,0 +1,82 @@
+{
+  "schema_version": "countdown-v19-preflight-report-v1",
+  "protocol_id": "countdown-v19-within-v2-reset-v1",
+  "status": "INFRASTRUCTURE_PASS",
+  "scientific_evidence": false,
+  "source_commit": "5b4446c2f4cddd9a1e512e825a4068b79cffe391",
+  "model": {
+    "name": "Qwen/Qwen2.5-0.5B-Instruct",
+    "revision": "7ae557604adf67be50417f59c2c2f167def9a775"
+  },
+  "runtime": {
+    "device": "mps",
+    "machine": "arm64",
+    "cuda_available": false,
+    "mps_available": true
+  },
+  "scope": {
+    "training_steps_per_state": 1,
+    "evaluation_task_ids": [
+      "v2_validation_easy_000020",
+      "v2_validation_medium_000046"
+    ],
+    "candidates_per_evaluation_state": 4,
+    "confirmation_accessed": false,
+    "test_accessed": false,
+    "final_test_accessed": false
+  },
+  "training": {
+    "sft": {
+      "experiment_id": "75f794ba1c3f8f9a194242ea1398776b98db253769a0811e42b2c03fa7ffe6fd",
+      "run_result_sha256": "c701cdfd7779e8c195e16a033799a295799e05f4ec4b9acb5c09384128636db0",
+      "adapter_weights_sha256": "068085dccf101fccba431982e3cea34fb76147dd8202dc655aeabb171119019b",
+      "wall_clock_seconds": 4.397323131561279,
+      "health": "PASS"
+    },
+    "grpo_fresh": {
+      "experiment_id": "965e88fdb2e84a113d2c4202e56c7e89dac9169903cbf01d76553f4b2765af56",
+      "run_result_sha256": "4e5b190f2b0ad57335058611142d32384904a5750c53ab02fa0af7da40ef497a",
+      "adapter_weights_sha256": "a388524aa56a3a4834c7022163c191b89a20d34cc4cffba01fe8062909fe8a2e",
+      "reward_components_sha256": "c06f82d15a943d78b64054c7163e59d1ec5a29a16af878fbb0f665495800c293",
+      "wall_clock_seconds": 7.188812732696533,
+      "separate_reward_components_verified": true,
+      "group_variance_row_fraction": 0.0,
+      "health": "PREFLIGHT_PASS"
+    },
+    "grpo_from_sft": {
+      "experiment_id": "d9777f23bbf9138b73de81078d799ae4f9f7c403a176729606723187d713bfaf",
+      "run_result_sha256": "eff4d5cd0b904f7982fd7459fa1b219703a12b5d077bafc1c2deefa7a42afada",
+      "adapter_weights_sha256": "068085dccf101fccba431982e3cea34fb76147dd8202dc655aeabb171119019b",
+      "reward_components_sha256": "955afff1a9472cd28792416d1f4cbba1b9fc2b722636b05deb69b1be7ce78118",
+      "wall_clock_seconds": 5.949620008468628,
+      "separate_reward_components_verified": true,
+      "group_variance_row_fraction": 0.0,
+      "health": "PREFLIGHT_PASS"
+    }
+  },
+  "evaluation": {
+    "base": {
+      "experiment_id": "3af6ac3d92f44dd041311cf76a1d87cf17244a653a69caf1398b4b1d57f15f09",
+      "run_result_sha256": "1d34ab1d93ca6c0fc33de8ca9a77c4b90c1dd1dcbde362d8ed39cdf80e3bfbfd",
+      "candidates_sha256": "59a604ca1f4f9c259dbc9a375fe54d4c05e8c6b62dbc33404e084c21624c5681",
+      "oracle_exact_at_2": 0.0,
+      "reranked_exact_at_2": 0.0,
+      "total_generated_tokens": 219,
+      "exact_token_metadata": true
+    },
+    "sft_grpo": {
+      "experiment_id": "4a3fdc3630042eb8571a09b8e1965d283e0409c962acb28d853558834e97974e",
+      "run_result_sha256": "094beb9bc1f4903b4abdfec427ddab8a22623b46f6c886dd7760699565621248",
+      "candidates_sha256": "ca760e215ab04c81946a9802de4ab1f15a61e4fcfd85d732d4b3dc0aadf3fd88",
+      "oracle_exact_at_2": 0.0,
+      "reranked_exact_at_2": 0.0,
+      "total_generated_tokens": 256,
+      "exact_token_metadata": true
+    }
+  },
+  "interpretation": {
+    "result": "SFT, fresh GRPO, SFT-to-GRPO continuation, strict manifests, separate reward logs, batched MPS generation, and exact token metadata all executed end to end.",
+    "zero_group_variance": "Two generations on one smoke prompt produced no reward variance. This is non-scientific and allowed only for the one-step preflight; production 300-step GRPO health fails if no within-prompt variance is ever observed.",
+    "production_gate": "BLOCKED_PENDING_COMMITTED_SINGLE_CUDA_ENVIRONMENT_AND_LAUNCH_RECORD"
+  }
+}

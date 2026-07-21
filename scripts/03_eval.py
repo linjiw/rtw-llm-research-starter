@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 
+from rtw_llm.data_access import assert_countdown_data_access
 from rtw_llm.data import read_jsonl, write_jsonl
 from rtw_llm.engine import GenerationConfigLite, HFEngine, VLLMEngine
 from rtw_llm.rewards import metrics_for_completion
@@ -28,6 +29,14 @@ def main() -> None:
     parser.add_argument("--max_new_tokens", type=int, default=256)
     parser.add_argument("--temperature", type=float, default=0.0)
     args = parser.parse_args()
+
+    assert_countdown_data_access(
+        args.data_path,
+        purpose="model_eval",
+        runner="03_eval",
+        release_record=None,
+        repo_root=Path(__file__).resolve().parents[1],
+    )
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

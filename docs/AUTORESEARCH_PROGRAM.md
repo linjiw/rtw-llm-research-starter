@@ -6,6 +6,29 @@ iterations in this repo, adapted from the karpathy/autoresearch pattern
 An agent (Claude Code) executes iterations of the loop below; a human reviews
 the ledger and this program between sessions and improves the program itself.
 
+> **2026-07-09 protocol-gate override:** v0.14 established that historical
+> GRPO “seeds” did not vary `GRPOConfig.seed` and fresh-LoRA initialization was
+> not pre-seeded. Existing artifacts are `countdown-legacy-v1`; their seed-level
+> uncertainty is descriptive only. Pause new GPU work. The active queue is now:
+> explicit seed contract (done) → manifests (done) → read-only dataset audit
+> → task-clustered statistics (done) → corrected-v2 dataset/rerun design. The dataset
+> audit completed with integrity FAIL (39 difficulty-count defects + cross-split
+> leakage), so legacy files are reproduction-only. v0.17 also withdrew pooled
+> pseudoreplicated p-values; raw legacy banks are absent, so repaired intervals
+> cannot be recomputed. The globally disjoint v2 data protocol is now complete:
+> 7,500 tasks, deterministic replay, audit ELIGIBLE, final test sealed. The next
+> action is a separately pre-registered complete within-v2 baseline reset; GPU
+> remains paused until that plan is reviewed and committed. This override
+> supersedes the older Gate-0/queue text below.
+
+> **2026-07-10 v0.19 update:** the complete within-v2 reset is registered and
+> independently design-cleared. Its practical reranked exact@8 confirm400
+> endpoint, true-seed matrix, fixed batched-HF stream, task-cluster inference,
+> and one-shot test gate supersede Sections 2--3's legacy 50-task objective for
+> corrected-v2 work. The next gate is a bounded local preflight, followed by a
+> precommitted homogeneous CUDA environment and launch budget. No production,
+> in-distribution test, or final-test run is authorized without those records.
+
 ## 1. North-star goal
 
 > Show that adaptive curricula — RTW-style reward curricula and GACL-style task

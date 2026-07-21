@@ -1181,9 +1181,13 @@
       "stable_only": 4,
       "static_only": 2,
       "neither": 142,
-      "mcnemar_p": 0.6875,
       "delta_reranked_exact_mean": 0.013333333333333332,
-      "delta_reranked_exact_std": 0.011547005383792514
+      "delta_reranked_exact_std": 0.011547005383792514,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.6875
+      }
     },
     {
       "split": "test_in_dist",
@@ -1194,9 +1198,13 @@
       "stable_only": 5,
       "static_only": 8,
       "neither": 129,
-      "mcnemar_p": 0.5810546875,
       "delta_reranked_exact_mean": -0.020000000000000004,
-      "delta_reranked_exact_std": 0.03464101615137754
+      "delta_reranked_exact_std": 0.03464101615137754,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.5810546875
+      }
     },
     {
       "split": "test_in_dist",
@@ -1207,9 +1215,13 @@
       "stable_only": 8,
       "static_only": 6,
       "neither": 124,
-      "mcnemar_p": 0.79052734375,
       "delta_reranked_exact_mean": 0.013333333333333327,
-      "delta_reranked_exact_std": 0.050332229568471665
+      "delta_reranked_exact_std": 0.050332229568471665,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.79052734375
+      }
     },
     {
       "split": "validation",
@@ -1220,9 +1232,13 @@
       "stable_only": 3,
       "static_only": 1,
       "neither": 146,
-      "mcnemar_p": 0.625,
       "delta_reranked_exact_mean": 0.013333333333333334,
-      "delta_reranked_exact_std": 0.011547005383792516
+      "delta_reranked_exact_std": 0.011547005383792516,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.625
+      }
     },
     {
       "split": "validation",
@@ -1233,9 +1249,13 @@
       "stable_only": 12,
       "static_only": 0,
       "neither": 134,
-      "mcnemar_p": 0.00048828125,
       "delta_reranked_exact_mean": 0.08,
-      "delta_reranked_exact_std": 0.034641016151377546
+      "delta_reranked_exact_std": 0.034641016151377546,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.00048828125
+      }
     },
     {
       "split": "validation",
@@ -1246,9 +1266,13 @@
       "stable_only": 11,
       "static_only": 1,
       "neither": 129,
-      "mcnemar_p": 0.00634765625,
       "delta_reranked_exact_mean": 0.06666666666666668,
-      "delta_reranked_exact_std": 0.04163331998932265
+      "delta_reranked_exact_std": 0.04163331998932265,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.00634765625
+      }
     }
   ],
   "paired_oracle_by_seed": [
@@ -1479,9 +1503,13 @@
       "stable_only": 4,
       "static_only": 2,
       "neither": 142,
-      "mcnemar_p": 0.6875,
       "delta_reranked_exact_mean": 0.013333333333333332,
-      "delta_reranked_exact_std": 0.011547005383792514
+      "delta_reranked_exact_std": 0.011547005383792514,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.6875
+      }
     },
     {
       "split": "test_in_dist",
@@ -1492,9 +1520,13 @@
       "stable_only": 5,
       "static_only": 8,
       "neither": 129,
-      "mcnemar_p": 0.5810546875,
       "delta_reranked_exact_mean": -0.020000000000000004,
-      "delta_reranked_exact_std": 0.03464101615137754
+      "delta_reranked_exact_std": 0.03464101615137754,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.5810546875
+      }
     },
     {
       "split": "test_in_dist",
@@ -1505,9 +1537,13 @@
       "stable_only": 8,
       "static_only": 6,
       "neither": 124,
-      "mcnemar_p": 0.79052734375,
       "delta_reranked_exact_mean": 0.013333333333333327,
-      "delta_reranked_exact_std": 0.050332229568471665
+      "delta_reranked_exact_std": 0.050332229568471665,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.79052734375
+      }
     },
     {
       "split": "validation",
@@ -1518,9 +1554,13 @@
       "stable_only": 3,
       "static_only": 1,
       "neither": 146,
-      "mcnemar_p": 0.625,
       "delta_reranked_exact_mean": 0.013333333333333334,
-      "delta_reranked_exact_std": 0.011547005383792516
+      "delta_reranked_exact_std": 0.011547005383792516,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.625
+      }
     },
     {
       "split": "validation",
@@ -1531,9 +1571,13 @@
       "stable_only": 12,
       "static_only": 0,
       "neither": 134,
-      "mcnemar_p": 0.00048828125,
       "delta_reranked_exact_mean": 0.08,
-      "delta_reranked_exact_std": 0.034641016151377546
+      "delta_reranked_exact_std": 0.034641016151377546,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.00048828125
+      }
     },
     {
       "split": "validation",
@@ -1544,9 +1588,20 @@
       "stable_only": 11,
       "static_only": 1,
       "neither": 129,
-      "mcnemar_p": 0.00634765625,
       "delta_reranked_exact_mean": 0.06666666666666668,
-      "delta_reranked_exact_std": 0.04163331998932265
+      "delta_reranked_exact_std": 0.04163331998932265,
+      "legacy_pseudoreplicated_descriptive_only": {
+        "inference_valid": false,
+        "reason": "task-by-run cells were pooled as independent pairs; raw banks are unavailable for task-clustered recomputation",
+        "pooled_mcnemar_p": 0.00634765625
+      }
     }
-  ]
+  ],
+  "schema_version": "rtw-v09-legacy-summary-protocol-corrected-v2",
+  "protocol_correction": {
+    "corrected_at": "2026-07-09",
+    "cross_run_pooled_mcnemar_inference_valid": false,
+    "task_clustered_inference_available": false,
+    "reason": "raw candidate banks are absent; do not infer clustered uncertainty from aggregates"
+  }
 }

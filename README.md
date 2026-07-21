@@ -51,16 +51,18 @@ pip install -e .
 
 For GPU training, install a CUDA-compatible PyTorch build first, then run `pip install -e .`.
 
-### 2. Generate or refresh dataset
+### 2. Generate the versioned corrected dataset
 
 ```bash
-python scripts/00_generate_countdown_dataset.py \
-  --out_dir data/countdown \
-  --train 5000 --valid 500 --test 500 --ood 500 \
-  --seed 42
+python scripts/18_generate_countdown_v2.py
+python scripts/19_audit_countdown_v2.py
 ```
 
-A small starter dataset is already included.
+`data/countdown/` is frozen legacy-v1 evidence and must not be refreshed.
+Script 00 exists only to replay that historical generator into a separate path.
+Countdown-v2 is write-once, globally disjoint, verifier-audited, and includes a
+technically guarded final test. See
+[`docs/COUNTDOWN_V2_DATASET_CARD.md`](docs/COUNTDOWN_V2_DATASET_CARD.md).
 
 ### 3. Run verifier tests
 

@@ -2,6 +2,10 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
+from rtw_llm.provenance import ProvenanceError, write_intent, write_result
+
 
 def load_bestofn_module():
     path = Path(__file__).resolve().parents[1] / "scripts" / "07_best_of_n_rerank.py"
@@ -160,3 +164,49 @@ def test_cost_per_exact_handles_zero_exact():
     mod = load_bestofn_module()
     assert mod.cost_per_exact(8, 0.0) == 8_000_000_000_000.0
     assert mod.cost_per_exact(8, 0.25) == 32.0
+
+
+def _strict_identity():
+    return {
+        "schema_version": "rtw-run-manifest-v1",
+        "run_kind": "best_of_n",
+        "git": {"commit": "a" * 40, "dirty": False, "status_sha256": None},
+        "requested_args": {},
+        "resolved_config": {},
+        "seed_roles": {"sampling_seed": 0},
+        "inputs": {},
+        "model": {"name": "model", "revision": "b" * 40},
+        "runtime": {"python": "test"},
+    }
+
+
+def test_strict_skip_requires_verified_completed_manifest(tmp_path):
+    mod = load_bestofn_module()
+    out = tmp_path / "run"
+    out.mkdir()
+    assert mod.is_strict_complete(out, _strict_identity()) is False
+
+    write_intent(out, _strict_identity())
+    with pytest.raises(ProvenanceError):
+        mod.is_strict_complete(out, _strict_identity())
+
+    artifact = out / "metrics.json"
+    artifact.write_text("{}\n")
+    write_result(out, artifact_paths={"metrics": artifact})
+    with pytest.raises(ProvenanceError, match="missing required artifacts"):
+        mod.is_strict_complete(out, _strict_identity())
+
+    complete = tmp_path / "complete"
+    write_intent(complete, _strict_identity())
+    artifacts = {}
+    for role, name in {
+        "candidates": "candidates.jsonl",
+        "metrics": "metrics.json",
+        "run_config": "run_config.json",
+        "summary": "summary.csv",
+    }.items():
+        path = complete / name
+        path.write_text("{}\n")
+        artifacts[role] = path
+    write_result(complete, artifact_paths=artifacts)
+    assert mod.is_strict_complete(complete, _strict_identity()) is True

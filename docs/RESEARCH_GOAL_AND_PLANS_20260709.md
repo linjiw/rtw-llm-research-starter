@@ -8,6 +8,19 @@ defers detail to): `STRATEGIC_REPIVOT_20260709.md` (direction),
 `PAPER2_MICROCODE_TESTBED_SPEC.md` (Paper-2 testbed), `EXPERIMENT_LEDGER.md`
 (evidence), `AUTORESEARCH_PROGRAM.md` (operating loop).
 
+> **Protocol correction added 2026-07-09 (v0.14 seed gate):** all results
+> below were produced under `countdown-legacy-v1`. Historical Stable/static
+> “seeds 0/1/2” did not vary the GRPO trainer seed and are legacy stochastic
+> repeats, not true training seeds. v0.13 seeds 1/2 vary the SFT training-loop
+> seed while retaining GRPO 42. Numerical observations remain useful, but
+> cross-training-seed uncertainty, “above seed noise,” and confirmatory
+> multi-seed language are provisional until every compared arm is rerun under
+> `countdown-true-seeds-v2`. Manifest and clustered-statistics gates are now
+> complete. The legacy audit failed, but v0.18 has now created and independently
+> audited a globally disjoint 7,500-task v2 dataset with a sealed final test.
+> No GPU experiment should start until a separate within-v2 baseline-reset plan
+> is reviewed and committed. Legacy-v1 and v2 evidence must never be mixed.
+
 ---
 
 ## 0. Status review (what is true right now)
