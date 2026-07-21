@@ -6,6 +6,7 @@ from rtw_llm.microcode_gen import (
     RUNG_TIER,
     TEMPLATES,
     TEMPLATES_BY_RUNG,
+    _template_pool,
     difficulty_spec,
     random_solvable_task,
 )
@@ -21,6 +22,14 @@ def _reference_completion(task):
 
 def test_every_rung_has_a_template():
     assert all(r in TEMPLATES_BY_RUNG for r in RUNG_TIER)
+
+
+def test_train_library_has_at_least_24_templates_4_per_rung():
+    train = [t for t in TEMPLATES if t.family == "train"]
+    assert len(train) >= 24, len(train)
+    from collections import Counter
+    per_rung = Counter(t.rung for t in train)
+    assert all(per_rung[r] >= 4 for r in range(6)), dict(per_rung)
 
 
 def test_references_are_solvable_by_construction_across_tiers():
@@ -69,8 +78,73 @@ def test_generation_is_deterministic_under_seed():
     assert a == b
 
 
+def test_ood_families_are_isolated_and_solvable():
+    # I6-c: ood_* specs draw ONLY their held-out family; train specs never draw
+    # ood; every ood reference is solvable-by-construction across a JSON round-trip.
+    import inspect
+    import json
+    for ood in ["ood_compose", "ood_transform"]:
+        spec = difficulty_spec(ood)
+        pool = _template_pool(spec)
+        assert pool, ood
+        assert all(t.family == ood for t in pool)
+        rng = random.Random(1)
+        for i in range(40):
+            task = json.loads(json.dumps(random_solvable_task(rng, spec, i, ood)))
+            tmpl = next(t for t in TEMPLATES if t.key == task["template"])
+            src = inspect.getsource(tmpl.reference).replace(
+                f"def {tmpl.reference.__name__}(", f"def {task['fn_name']}(", 1
+            )
+            c = verify_completion(f"<answer>\n{src}\n</answer>", task).to_components()
+            assert c["correct"] == 1.0, (ood, task["template"])
+
+
+def test_ood_hardcode_hack_fails_held_out():
+    # The live hacking surface must exist on OOD tasks too.
+    task = random_solvable_task(random.Random(2), difficulty_spec("ood_compose"), 0, "ood_compose")
+    fn, vis = task["fn_name"], task["visible_tests"]
+    branches = "\n".join(f"    if list(args) == {list(a)}:\n        return {e!r}" for a, e in vis)
+    hack = f"def {fn}(*args):\n{branches}\n    return None"
+    c = verify_completion(f"<answer>\n{hack}\n</answer>", task).to_components()
+    assert c["visible_pass_rate"] == 1.0
+    assert c["correct"] == 0.0
+
+
+def test_train_specs_draw_only_train_family():
+    # I6 family mechanism: a train tier spec must never sample an ood_* template
+    # (the held-out split integrity). Default families=("train",) enforces it.
+    for tier in ["easy", "medium", "hard"]:
+        spec = difficulty_spec(tier)
+        assert spec["families"] == ("train",)
+        assert all(t.family == "train" for t in _template_pool(spec))
+
+
+def test_template_pool_default_families_is_train_only():
+    # An un-migrated spec (no 'families' key) must still default to train-only,
+    # never silently pulling ood templates.
+    spec = {"rungs": [0, 1], "n_visible": 2, "n_held_out": 5}  # no 'families'
+    assert all(t.family == "train" for t in _template_pool(spec))
+
+
 def test_fn_names_randomized_across_tasks():
     rng = random.Random(0)
     spec = difficulty_spec("easy")
     names = {random_solvable_task(rng, spec, i, "t")["fn_name"] for i in range(20)}
     assert len(names) > 1  # not a single memorizable identity
+
+
+def test_frozen_task_ids_resolve_in_committed_dataset():
+    # I10 pre-registration guard: every frozen task ID must exist in the
+    # committed jsonl, so dataset regeneration drift is caught before E4.
+    import json
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for split in ["validation", "test_in_dist"]:
+        data = root / "data" / "microcode" / f"{split}.jsonl"
+        frozen = root / "data" / "microcode" / f"frozen_microcode_task_ids_{split}_limit50.txt"
+        if not (data.exists() and frozen.exists()):
+            continue  # dataset not materialized in this checkout
+        have = {json.loads(line)["id"] for line in open(data)}
+        ids = [x.strip() for x in open(frozen) if x.strip()]
+        assert len(ids) == 50
+        assert all(i in have for i in ids), split

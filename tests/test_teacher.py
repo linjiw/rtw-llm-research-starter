@@ -1,7 +1,50 @@
 import json
 
-from rtw_llm.teacher import AUX_KEYS, RTWTeacher, TeacherConfig
+from rtw_llm.teacher import (
+    AUX_KEYS,
+    MICRO_AUX_KEYS,
+    MICRO_STABLE_CAPS,
+    MICRO_STABLE_FLOORS,
+    MICRO_TARGET_WEIGHT_SUM,
+    STABLE_CAPS,
+    STABLE_FLOORS,
+    RTWTeacher,
+    TeacherConfig,
+)
 from rtw_llm.rewards import RTWRewardManager
+
+
+def _micro_config(**kw):
+    return TeacherConfig(
+        strategy="adaptive_stable",
+        aux_keys=list(MICRO_AUX_KEYS),
+        stable_floors=dict(MICRO_STABLE_FLOORS),
+        stable_caps=dict(MICRO_STABLE_CAPS),
+        stable_target_weight_sum=MICRO_TARGET_WEIGHT_SUM,
+        **kw,
+    )
+
+
+def test_countdown_teacher_constants_are_byte_identical():
+    # Adding MicroCode tables must NOT perturb the Countdown defaults (invariant).
+    assert AUX_KEYS == ["format", "valid_expression", "number_multiset_f1",
+                        "allowed_ops", "numeric_distance_reward", "brevity"]
+    assert STABLE_FLOORS["valid_expression"] == 0.16
+    assert STABLE_CAPS == {"numeric_distance_reward": 0.20}
+
+
+def test_microcode_teacher_drives_its_own_aux_key_set():
+    t = RTWTeacher(_micro_config(stable_delay_steps=2, seed=0))
+    assert set(t.get_weights()) == set(MICRO_AUX_KEYS)
+    for _ in range(60):
+        t.update([{"correct": 0.0, "valid_expression": 1.0, "runs_without_error": 1.0,
+                   "visible_pass_rate": 0.99, "no_hardcoding_heuristic": 0.4,
+                   "held_out_pass_rate": 0.2} for _ in range(8)])
+    w = t.get_weights()
+    assert set(w) == set(MICRO_AUX_KEYS)
+    assert abs(sum(w.values()) - MICRO_TARGET_WEIGHT_SUM) < 1e-6  # budget respected
+    # proxy (visible_pass_rate) saturated => down-weighted below its 0.20 init
+    assert w["visible_pass_rate"] < 0.20
 
 
 def test_teacher_updates_weights():

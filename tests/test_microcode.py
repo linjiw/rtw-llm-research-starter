@@ -1,9 +1,108 @@
+import inspect
+import json
+import random
+
 from rtw_llm.microcode import (
+    MICRO_SELECTOR_WEIGHTS,
+    _MICRO_SELECTOR_FORBIDDEN,
     extract_function_source,
+    microcode_practical_score,
     score_completion,
     static_legality,
     verify_completion,
 )
+from rtw_llm.microcode_gen import TEMPLATES, difficulty_spec, random_solvable_task
+from rtw_llm.rewards import RTWRewardManager
+from rtw_llm.teacher import MICRO_AUX_KEYS, RTWTeacher, TeacherConfig
+
+
+_TIER_FOR_FAMILY = {"train": ["easy", "medium", "hard"],
+                    "ood_compose": ["ood_compose"], "ood_transform": ["ood_transform"]}
+
+
+def _all_tiers_tasks(seed=0):
+    """EXACTLY one task per template key (built by construction, not random
+    sampling, so coverage of every template — incl. every ood_* family — is
+    guaranteed, not probabilistic). Draws each template from a tier whose spec
+    includes it, retrying indices until that template is produced."""
+    tasks = []
+    for tmpl in TEMPLATES:
+        tiers = _TIER_FOR_FAMILY[tmpl.family]
+        rng = random.Random(seed + hash(tmpl.key) % 10_000)
+        found = None
+        for tier in tiers:
+            spec = difficulty_spec(tier)
+            for i in range(500):
+                t = random_solvable_task(rng, spec, i, tier)
+                if t["template"] == tmpl.key:
+                    found = t
+                    break
+            if found:
+                break
+        assert found is not None, f"could not generate a task for template {tmpl.key}"
+        tasks.append(found)
+    return tasks
+
+
+def _ref_completion(task):
+    tmpl = next(t for t in TEMPLATES if t.key == task["template"])
+    src = inspect.getsource(tmpl.reference).replace(
+        f"def {tmpl.reference.__name__}(", f"def {task['fn_name']}(", 1
+    )
+    return f"<answer>\n{src}\n</answer>"
+
+
+def test_every_template_reference_passes_its_own_held_out_set():
+    # Invariant #4: the reference for EVERY template (all families) must pass its
+    # own held-out suite — a reference bug silently mislabels a whole family.
+    tasks = _all_tiers_tasks()
+    covered = {t["template"] for t in tasks}
+    assert covered == {t.key for t in TEMPLATES}, covered ^ {t.key for t in TEMPLATES}
+    for task in tasks:
+        c = verify_completion(_ref_completion(task), task).to_components()
+        assert c["correct"] == 1.0, task["template"]
+        assert c["held_out_pass_rate"] == 1.0, task["template"]
+
+
+def test_reverification_is_bit_stable_across_json_roundtrip_and_repeats():
+    # The instruction-budget (not wall-clock) design makes verification
+    # deterministic under CPU contention: re-verifying the same completion, and
+    # verifying a JSON-round-tripped task, must give identical components.
+    for task in _all_tiers_tasks(seed=1):
+        comp = _ref_completion(task)
+        c1 = verify_completion(comp, task).to_components()
+        c2 = verify_completion(comp, task).to_components()
+        assert c1 == c2, task["template"]
+        task_rt = json.loads(json.dumps(task))
+        c3 = verify_completion(comp, task_rt).to_components()
+        assert c1 == c3, task["template"]
+
+
+def test_microcode_selector_never_uses_held_out_truth():
+    # Selector-hygiene invariant (analog of the Countdown practical_score guard):
+    # the frozen MicroCode selector must NOT depend on held_out_pass_rate /
+    # correct / exact_correct. Prove it: perturbing only those keys leaves the
+    # score unchanged; and none appears in the weight table.
+    for k in _MICRO_SELECTOR_FORBIDDEN:
+        assert k not in MICRO_SELECTOR_WEIGHTS
+    base = {"valid_expression": 1.0, "runs_without_error": 1.0,
+            "visible_pass_rate": 0.5, "no_hardcoding_heuristic": 1.0,
+            "held_out_pass_rate": 0.0, "correct": 0.0, "exact_correct": 0.0}
+    s0 = microcode_practical_score(base)
+    hacked = {**base, "held_out_pass_rate": 1.0, "correct": 1.0, "exact_correct": 1.0}
+    assert microcode_practical_score(hacked) == s0  # truth changes -> score unchanged
+
+
+def test_to_components_contract_pins_primary_and_teacher_aux_keys():
+    # Locks the reward-channel contract I8/curriculum depend on: primary alias +
+    # gate key + every weighted MicroCode aux key must be present.
+    task = _all_tiers_tasks()[0]
+    c = verify_completion(_ref_completion(task), task).to_components()
+    assert c["correct"] == c["exact_correct"]           # primary alias
+    assert "valid_expression" in c                        # curriculum gate key
+    for k in MICRO_AUX_KEYS:
+        assert k in c, k
+    assert "held_out_pass_rate" in c                      # diagnostic truth channel
 
 TASK = {
     "fn_name": "count_greater",
@@ -24,6 +123,38 @@ def test_correct_solution_scores_primary_1_and_full_pass():
     assert c["held_out_pass_rate"] == 1.0
     assert c["visible_pass_rate"] == 1.0
     assert c["valid_expression"] == 1.0
+
+
+def test_reward_manager_runs_microcode_scorer_end_to_end():
+    # Regression: RTWRewardManager log records read result.value / result.correct
+    # (the VerificationResult contract). MicroVerificationResult must expose both
+    # (compat properties) or a GRPO/eval run through the manager crashes on the
+    # first batch. This bug would have killed the E4 pilot; guard it here.
+    mgr = RTWRewardManager(
+        teacher=RTWTeacher(TeacherConfig(strategy="static")),
+        scorer=score_completion,
+        example_fields=("fn_name", "visible_tests", "held_out_tests"),
+        group_size=2,
+    )
+    correct = wrap("def count_greater(nums, threshold):\n    return sum(1 for x in nums if x > threshold)")
+    wrong = wrap("def count_greater(nums, threshold):\n    return 0")
+    rewards = mgr(
+        completions=[correct, wrong],
+        id=["t", "t"],
+        difficulty=["medium", "medium"],
+        fn_name=[TASK["fn_name"]] * 2,
+        visible_tests=[TASK["visible_tests"]] * 2,
+        held_out_tests=[TASK["held_out_tests"]] * 2,
+    )
+    assert len(rewards) == 2
+    assert rewards[0] > rewards[1]  # correct out-scores the constant-0 hack
+
+
+def test_microcode_result_value_and_correct_properties():
+    comp = wrap("def count_greater(nums, threshold):\n    return sum(1 for x in nums if x > threshold)")
+    r = verify_completion(comp, TASK)
+    assert r.correct is True
+    assert r.value == r.held_out_pass_rate == 1.0
 
 
 def test_partial_solution_gives_dense_partial_credit_not_primary():

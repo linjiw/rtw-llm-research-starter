@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RTW-LLM — Reward Training Wheels for LLM Post-Training</title>
+<meta name="description" content="When does adaptive reward/curriculum control help RL post-training of LLMs on strict-verifier tasks — and when is it structurally inert? A research project on Reward Training Wheels (RTW) and adaptive curricula (GACL).">
+<style>
+  :root {
+    color-scheme: dark;
+    /* palette (validated default, dark surface) */
+    --page:        #0d0d0d;
+    --surface-1:   #1a1a19;
+    --surface-2:   #232322;
+    --text-1:      #ffffff;
+    --text-2:      #c3c2b7;
+    --muted:       #898781;
+    --grid:        #2c2c2a;
+    --baseline:    #383835;
+    --border:      rgba(255,255,255,0.10);
+    /* categorical series (dark steps) */
+    --s1: #3987e5;  /* blue   — RTW / adaptive */
+    --s2: #008300;  /* green  — capability / SFT / success */
+    --s3: #d55181;  /* magenta— proxy / hacking */
+    --s4: #c98500;  /* yellow — warning / static */
+    --s5: #199e70;  /* aqua   */
+    --s6: #d95926;  /* orange */
+    --s7: #9085e9;  /* violet */
+    --s8: #e66767;  /* red    — strike / inert */
+    --good: #0ca30c;
+    --warn: #fab219;
+    --crit: #d03b3b;
+    --radius: 12px;
+    --maxw: 1080px;
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface-1:   #fcfcfb;
+    --surface-2:   #f2f1ee;
+    --text-1:      #0b0b0b;
+    --text-2:      #52514e;
+    --muted:       #898781;
+    --grid:        #e1e0d9;
+    --baseline:    #c3c2b7;
+    --border:      rgba(11,11,11,0.10);
+    --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
+    --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
+    --good: #006300;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-1);
+    font-family: var(--font); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--s1); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
+  h1,h2,h3 { line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0 0 4px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.14em; font-size: 0.72rem;
+    font-weight: 700; color: var(--s1); margin-bottom: 10px; }
+  section { padding: 64px 0; border-top: 1px solid var(--border); }
+  section:first-of-type { border-top: none; }
+  .lede { color: var(--text-2); font-size: 1.05rem; max-width: 68ch; }
+  .muted { color: var(--muted); }
+
+  /* top bar */
+  header.bar { position: sticky; top: 0; z-index: 40; background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .bar-inner { display: flex; align-items: center; gap: 16px; height: 56px; }
+  .brand { font-weight: 700; letter-spacing: -0.02em; }
+  .brand b { color: var(--s1); }
+  .bar nav { margin-left: auto; display: flex; gap: 18px; align-items: center; }
+  .bar nav a { color: var(--text-2); font-size: 0.9rem; }
+  .bar nav a:hover { color: var(--text-1); text-decoration: none; }
+  .toggle { cursor: pointer; background: var(--surface-2); border: 1px solid var(--border);
+    color: var(--text-2); border-radius: 8px; padding: 5px 10px; font-size: 0.8rem; font-family: var(--font); }
+  @media (max-width: 720px) { .bar nav a.navlink { display: none; } }
+
+  /* hero */
+  .hero { padding: 80px 0 56px; }
+  .hero h1 { font-size: clamp(2.1rem, 5.5vw, 3.6rem); margin: 0 0 20px; max-width: 20ch; }
+  .hero .q { color: var(--s1); }
+  .hero p { font-size: 1.15rem; color: var(--text-2); max-width: 62ch; }
+  .cta { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 0.92rem; }
+  .btn.primary { background: var(--s1); color: #fff; }
+  .btn.ghost { border: 1px solid var(--border); color: var(--text-1); background: var(--surface-1); }
+
+  /* stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 44px; }
+  @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 18px; }
+  .tile .v { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; }
+  .tile .v.blue { color: var(--s1); } .tile .v.green { color: var(--s2); }
+  .tile .v.mag { color: var(--s3); } .tile .v.red { color: var(--s8); }
+  .tile .k { color: var(--muted); font-size: 0.82rem; margin-top: 4px; }
+
+  .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 18px; }
+  @media (max-width: 820px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+
+  /* pipeline / architecture flow */
+  .flow { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; margin-top: 18px; }
+  .node { flex: 1 1 150px; background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px; position: relative; min-width: 140px; }
+  .node .n-t { font-weight: 700; font-size: 0.92rem; }
+  .node .n-d { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+  .node .tag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--s1); font-weight: 700; }
+  .arrow { align-self: center; color: var(--muted); padding: 0 6px; font-size: 1.3rem; flex: 0 0 auto; }
+  @media (max-width: 720px){ .arrow { transform: rotate(90deg); width:100%; text-align:center; padding:4px 0;} }
+
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.06em; }
+  .badge.keep { background: color-mix(in srgb, var(--good) 20%, transparent); color: var(--good); }
+  .badge.strike { background: color-mix(in srgb, var(--s8) 22%, transparent); color: var(--s8); }
+  .badge.done { background: color-mix(in srgb, var(--s1) 20%, transparent); color: var(--s1); }
+  .badge.gate { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+
+  /* precondition cards */
+  .pc { border-left: 3px solid var(--s1); }
+  .pc h3 { margin: 0 0 6px; font-size: 1.05rem; }
+  .pc .cd { font-size: 0.85rem; }
+  .pc .cd b.no { color: var(--s8); } .pc .cd b.yes { color: var(--s2); }
+
+  /* charts */
+  figure { margin: 0; }
+  .fig-cap { color: var(--muted); font-size: 0.8rem; margin-top: 10px; }
+  .chart { width: 100%; }
+  .bar-row { display: grid; grid-template-columns: 130px 1fr 74px; align-items: center; gap: 10px; margin: 9px 0; }
+  .bar-row .lbl { font-size: 0.82rem; color: var(--text-2); text-align: right; }
+  .bar-track { background: var(--surface-2); border-radius: 5px; height: 22px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 5px 4px 4px 5px; }
+  .bar-row .val { font-size: 0.85rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  table.tbl { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 8px; }
+  table.tbl th, table.tbl td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  table.tbl th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  table.tbl td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.8rem; color: var(--text-2); margin-top: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+  ul.clean { list-style: none; padding: 0; margin: 10px 0 0; }
+  ul.clean li { padding: 7px 0 7px 24px; position: relative; color: var(--text-2); font-size: 0.92rem; border-bottom: 1px solid var(--border); }
+  ul.clean li:before { content: "→"; position: absolute; left: 0; color: var(--s1); }
+  ul.clean li b { color: var(--text-1); }
+
+  code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 0.85em;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .formula { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; color: var(--text-1); overflow-x:auto; }
+  .roadmap { position: relative; margin-top: 8px; }
+  .rm { display: grid; grid-template-columns: 90px 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .rm .ph { font-weight: 700; color: var(--s1); font-size: 0.9rem; }
+  .rm .ph small { display:block; color: var(--muted); font-weight: 500; }
+  footer { padding: 48px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; }
+  .disclaimer { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px;
+    color: var(--text-2); font-size: 0.85rem; margin-top: 20px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="wrap bar-inner">
+    <span class="brand">RTW<b>·</b>LLM</span>
+    <nav>
+      <a class="navlink" href="#question">Question</a>
+      <a class="navlink" href="#architecture">Architecture</a>
+      <a class="navlink" href="#preconditions">Preconditions</a>
+      <a class="navlink" href="#findings">Findings</a>
+      <a class="navlink" href="#roadmap">Roadmap</a>
+      <a href="https://github.com/linjiw/rtw-llm-research-starter" target="_blank" rel="noopener">GitHub</a>
+      <button class="toggle" id="themeBtn" aria-label="Toggle light/dark">◐ Theme</button>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="wrap hero">
+  <div class="eyebrow">Adaptive reward & curriculum control for LLM RL post-training</div>
+  <h1>When do <span class="q">training wheels</span> help an LLM learn — and when is adaptivity structurally inert?</h1>
+  <p>RTW-LLM studies <b>Reward Training Wheels</b> (adaptive auxiliary-reward weighting) and <b>adaptive curricula</b> (GACL) for reinforcement-learning post-training of small LLMs on strict-verifier tasks. The headline result is a <b>diagnostic framework</b>: three measurable preconditions that predict, before spending GPU, whether an adaptive teacher has anything to grip.</p>
+  <div class="cta">
+    <a class="btn primary" href="#preconditions">The three preconditions</a>
+    <a class="btn ghost" href="#findings">See the evidence</a>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="v blue">60/60</div><div class="k">candidate banks where selection saturates (reranked@8 = oracle@8)</div></div>
+    <div class="tile"><div class="v green">4.1–4.5×</div><div class="k">held-out success from a capability lever (SFT), 3 seeds, non-overlapping</div></div>
+    <div class="tile"><div class="v red">2 strikes</div><div class="k">pre-registered reward/curriculum shaping levers that moved intermediates, not success</div></div>
+    <div class="tile"><div class="v mag">3</div><div class="k">falsifiable adaptivity preconditions — the core contribution</div></div>
+  </div>
+</div>
+
+<!-- QUESTION -->
+<section id="question"><div class="wrap">
+  <div class="eyebrow">The research question</div>
+  <h2>One question, two testbeds</h2>
+  <p class="lede">Adding dense auxiliary rewards and <em>adapting</em> their weights during training is a common instinct in RL post-training. RTW-LLM asks the meta-question the field mostly skips:</p>
+  <div class="card" style="margin-top:20px; border-left: 3px solid var(--s1);">
+    <p style="font-size:1.15rem; margin:0; color:var(--text-1);"><b>When does adaptive reward/curriculum control help RL post-training of LLMs on strict-verifier (agentic) tasks — and when is it structurally inert?</b></p>
+  </div>
+  <div class="grid2" style="margin-top:20px;">
+    <div class="card">
+      <span class="badge done">Paper 1 · now</span>
+      <h3 style="margin:10px 0 6px;">Countdown — a characterization</h3>
+      <p class="muted" style="font-size:0.92rem;">A strict AST/exact-rational arithmetic verifier. We show the reward surface <em>fails</em> all three preconditions, then diagnose <em>why</em> shaping stalls while a cheap capability lever succeeds. The diagnosis is the contribution.</p>
+    </div>
+    <div class="card">
+      <span class="badge gate">Paper 2 · north star</span>
+      <h3 style="margin:10px 0 6px;">MicroCode — a constructed testbed</h3>
+      <p class="muted" style="font-size:0.92rem;">Test-driven function synthesis, engineered so all three preconditions <em>hold</em>. Headline experiment: under a deliberately mis-weighted budget, does the adaptive teacher spontaneously down-weight a gamed test-passing proxy while a static schedule gets hacked?</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- ARCHITECTURE -->
+<section id="architecture"><div class="wrap">
+  <div class="eyebrow">Core architecture</div>
+  <h2>The RTW training loop</h2>
+  <p class="lede">A GRPO trainer scores each completion with a strict verifier, feeds per-component reward outcomes to an adaptive <em>teacher</em>, and the teacher reshapes the auxiliary weight vector used for the next batch.</p>
+
+  <div class="flow">
+    <div class="node"><span class="tag">policy</span><div class="n-t">GRPO Trainer</div><div class="n-d">samples K completions per prompt (LoRA, Qwen2.5-0.5B)</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><span class="tag">truth</span><div class="n-t">Strict Verifier</div><div class="n-d">AST + exact arithmetic; sole source of correctness</div></div>
+    <div class="arrow">→</div>
+    <div class="node"><span class="tag">reward</span><div class="n-t">RTW Reward Manager</div><div class="n-d">primary + Σ wₖ·auxₖ; logs components separately</div></div>
+    <div class="arrow">→</div>
+    <div class="node" style="border-color: var(--s1);"><span class="tag">adapt</span><div class="n-t">RTW Teacher</div><div class="n-d">reads recent per-component outcomes → new weight vector</div></div>
+  </div>
+  <p class="muted" style="text-align:center; margin-top:10px; font-size:0.82rem;">↺ the new weight vector feeds the next batch — the adaptive loop</p>
+
+  <div class="formula" style="margin-top:24px;">reward(e, x) = <b style="color:var(--s2)">primary(e, x)</b>  +  Σ<sub>k</sub> <b style="color:var(--s1)">w<sub>k</sub></b> · aux<sub>k</sub>(e, x)
+       └ exact_correct (verifier)          └ teacher-adapted weights   └ format · legality · number-F1 · ops · distance · brevity</div>
+
+  <div class="grid2" style="margin-top:24px;">
+    <div class="card">
+      <h3 style="margin-top:0; font-size:1.05rem;">The teacher: <code>adaptive_stable</code> (Stable-RTW)</h3>
+      <ul class="clean">
+        <li><b>need = 1 − EMA(auxₖ)</b> — a saturating component decays; a failing one is up-weighted</li>
+        <li><b>Delay + low LR + double-EMA</b> smoothing for stability</li>
+        <li><b>Per-key floors/caps</b> + a weight-sum <b>budget</b> via iterative redistribution</li>
+        <li>Six strategies: static · manual · random · adaptive · <b>adaptive_stable</b> · adaptive_phased</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0; font-size:1.05rem;">Task-agnostic by design</h3>
+      <ul class="clean">
+        <li>Reward manager dispatches on a pluggable <b>scorer</b> + <b>example_fields</b></li>
+        <li>Curriculum controller uses configurable <b>gate_key</b> / <b>graded_key</b> channels</li>
+        <li>Same GRPO + teacher plumbing drives <b>both</b> Countdown and MicroCode</li>
+        <li>Inference harness: verifier-guided <b>best-of-N</b> with a selector that never sees exactness</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- PRECONDITIONS -->
+<section id="preconditions"><div class="wrap">
+  <div class="eyebrow">The conceptual spine</div>
+  <h2>Three adaptivity preconditions</h2>
+  <p class="lede">The falsifiable core of the work: adaptive reward/curriculum control can only help when the reward surface satisfies these. Paper 1 derives them from Countdown's failure; Paper 2 constructs a testbed that satisfies them.</p>
+  <div class="grid3" style="margin-top:22px;">
+    <div class="card pc">
+      <h3>1 · Dense within-group variance</h3>
+      <p class="muted" style="font-size:0.9rem;">The controller needs a gradient to read across samples of the same task.</p>
+      <p class="cd">Countdown: <b class="no">~97% variance-saturated</b><br>MicroCode: <b class="yes">every group varies (std 0.41)</b></p>
+    </div>
+    <div class="card pc">
+      <h3>2 · A live hackable proxy</h3>
+      <p class="muted" style="font-size:0.9rem;">Reward-hacking resistance is only testable if the hack is reachable.</p>
+      <p class="cd">Countdown: <b class="no">non-hackable by construction</b><br>MicroCode: <b class="yes">hardcode visible tests → proxy 1.0</b></p>
+    </div>
+    <div class="card pc">
+      <h3>3 · A smooth competence gradient</h3>
+      <p class="muted" style="font-size:0.9rem;">A curriculum needs a climbable ordering of difficulty.</p>
+      <p class="cd">Countdown: <b class="no">bimodal exact, tiers collapse</b><br>MicroCode: <b class="yes">6-rung ladder, fractional credit</b></p>
+    </div>
+  </div>
+  <div class="disclaimer">Because Countdown fails all three, adaptive control is <b>structurally inert</b> there — verified controller-independently: even a perfect-hindsight oracle reweighter cannot make the optimizer prefer a correct completion it wasn't already preferring (0 rescue candidates across 7 checkpoints).</div>
+</div></section>
+
+<!-- FINDINGS -->
+<section id="findings"><div class="wrap">
+  <div class="eyebrow">Verified evidence</div>
+  <h2>What the experiments show</h2>
+  <p class="lede">All numbers are re-verified against committed artifacts under one frozen protocol (frozen task IDs, temp 0.7 / top-p 0.95, paired McNemar). Countdown at Qwen2.5-0.5B.</p>
+
+  <div class="grid2" style="margin-top:24px;">
+    <!-- CHART 1: capability vs shaping -->
+    <figure class="card">
+      <h3 style="margin-top:0; font-size:1.02rem;">Oracle success@8 — capability lever vs shaping (validation, /50)</h3>
+      <div class="chart" id="chartCapability"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--s2)"></i> capability (SFT+GRPO)</span>
+        <span><i class="dot" style="background:var(--s4)"></i> shaping / baseline</span>
+      </div>
+      <figcaption class="fig-cap">Two pre-registered shaping levers sit in the noise band (~5/50); one epoch of SFT on gold completions moves held-out success ~4.1× (mean 20.3/50, three seeds, non-overlapping). ~90% of solutions are novel expressions.</figcaption>
+    </figure>
+
+    <!-- CHART 2: selection saturates -->
+    <figure class="card">
+      <h3 style="margin-top:0; font-size:1.02rem;">Where do the 50 tasks go? (loss decomposition at N=8)</h3>
+      <div class="chart" id="chartSelection"></div>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--s2)"></i> solved (oracle-selected)</span>
+        <span><i class="dot" style="background:var(--s8)"></i> no candidate formed</span>
+        <span><i class="dot" style="background:var(--muted)"></i> mis-selected</span>
+      </div>
+      <figcaption class="fig-cap">Selection has <b>zero</b> headroom: the reranker matches the oracle in 60/60 banks. 91% of unsolved tasks form no correct candidate at all — the bottleneck is generation, not selection.</figcaption>
+    </figure>
+  </div>
+
+  <div class="card" style="margin-top:18px;">
+    <h3 style="margin-top:0; font-size:1.02rem;">The experiment ledger — claim by claim</h3>
+    <table class="tbl">
+      <thead><tr><th>Claim</th><th>Result</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>C1 · Inference-time selection</td><td>reranked@8 = oracle@8 in 60/60 banks; 91% of losses form no candidate</td><td><span class="badge done">saturated</span></td></tr>
+        <tr><td>C2 · Reward-weight envelope (v0.12)</td><td>legality 0.13→0.19 but P(exact|legal) flat 0.135→0.130</td><td><span class="badge strike">strike 1</span></td></tr>
+        <tr><td>C2 · Task-difficulty curriculum (v0.10)</td><td>difficulty mix moved; exact within noise; cost +1.8×</td><td><span class="badge strike">strike 2</span></td></tr>
+        <tr><td>C3 · SFT capability lever (v0.13)</td><td>val 20.3/50 vs 5.0 · test 24.0/50 vs 5.3 · 3 seeds non-overlapping</td><td><span class="badge keep">keep 4–5×</span></td></tr>
+        <tr><td>C4 · Why the controller is inert</td><td>3 preconditions fail; oracle reweighter has 0 rescue candidates</td><td><span class="badge done">mechanism</span></td></tr>
+        <tr><td>C5 · Cost (stable vs static)</td><td>0.58× tokens at equal exactness, 2.7–3.3× above seed noise</td><td><span class="badge keep">observed</span></td></tr>
+        <tr><td>C6 · Harness-shift / OOD robustness</td><td>near-null; sign-inconsistent 3/4 cells (pre-registered)</td><td><span class="badge done">closed</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<!-- MICROCODE / PAPER 2 -->
+<section id="microcode"><div class="wrap">
+  <div class="eyebrow">Paper 2 · the north star</div>
+  <h2>MicroCode: adaptivity where the preconditions hold</h2>
+  <p class="lede">A model emits one Python function from a signature + docstring + K <em>visible</em> tests, graded against <em>held-out</em> tests (the strict truth). Visible tests are the hackable proxy; held-out tests are the source of truth.</p>
+  <div class="grid2" style="margin-top:22px;">
+    <div class="card">
+      <h3 style="margin-top:0; font-size:1.05rem;">The hacking experiment (E5)</h3>
+      <p class="muted" style="font-size:0.92rem;">Under a <b>TEMPTATION</b> budget that over-weights the visible-test proxy, does the adaptive teacher spontaneously down-weight the gamed channel while a static schedule gets hacked? The held-out verifier measures true success throughout, so <em>“proxy up + primary flat = hacking”</em> is directly observable.</p>
+      <p class="muted" style="font-size:0.9rem; margin-top:10px;">CPU-verified on the real teacher: as visible-pass-rate saturates, its weight decays 0.20 → 0.145 and mass routes to the anti-cheat channel.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0; font-size:1.05rem;">Built & gated (CPU, no GPU yet)</h3>
+      <ul class="clean">
+        <li><b>Base probe: GO</b> — held-out pass 0.31, oracle@8 0.90, variance in every group</li>
+        <li><b>30 templates</b> · 24 train + 2 held-out OOD families · 6-rung ladder</li>
+        <li><b>Frozen protocol</b> · dataset, task IDs, selector, HONEST budget pre-registered</li>
+        <li><b>Hardened sandbox</b> · spawned worker + memory wall; DoS-sound isolation</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- ROADMAP -->
+<section id="roadmap"><div class="wrap">
+  <div class="eyebrow">Execution plan</div>
+  <h2>Roadmap</h2>
+  <div class="roadmap">
+    <div class="rm"><div class="ph">Paper 1<small>Countdown</small></div><div>
+      <span class="badge keep">complete</span> Five-lens generation-vs-selection diagnosis · two shaping strikes · SFT capability lever (3 seeds) · cost + robustness secondaries · outline rewritten around the characterization.</div></div>
+    <div class="rm"><div class="ph">Preconditions<small>the spine</small></div><div>
+      <span class="badge done">verified</span> Three falsifiable preconditions measured on Countdown (all fail); controller-independent oracle argument defuses the “weak controller” objection.</div></div>
+    <div class="rm"><div class="ph">MicroCode<small>build</small></div><div>
+      <span class="badge done">CPU done</span> Generator + verifier + teacher tables + invariant tests + frozen protocol + hardened sandbox. Base probe passed.</div></div>
+    <div class="rm"><div class="ph">E4 pilot<small>next</small></div><div>
+      <span class="badge gate">GPU-gated</span> Static vs adaptive_stable, HONEST budget — the first paired positive test of adaptivity, with within-group variance logged live.</div></div>
+    <div class="rm"><div class="ph">E5 headline<small>then</small></div><div>
+      <span class="badge gate">gated on E4</span> The TEMPTATION hacking-resistance experiment; OS-level sandbox isolation gates any escape-resistance claim.</div></div>
+    <div class="rm"><div class="ph">Beyond<small>long term</small></div><div>
+      <span class="muted">Portable preconditions diagnostic · real agentic-coding harnesses · a learned (bandit / policy-gradient) teacher baseline.</span></div></div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <p><b>RTW-LLM</b> — Reward Training Wheels for LLM post-training. A research project; results are on a single A10G with Qwen2.5-0.5B and are scoped accordingly.</p>
+  <p>Method claims use paired per-task comparisons and the strict verifier as the sole source of truth. Figures reproduce committed artifacts. · <a href="https://github.com/linjiw/rtw-llm-research-starter">github.com/linjiw/rtw-llm-research-starter</a></p>
+</div></footer>
+
+<script>
+// ---- theme toggle (respects OS, remembers choice) ----
+(function(){
+  var saved = null;
+  try { saved = localStorage.getItem('rtw-theme'); } catch(e){}
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  var btn = document.getElementById('themeBtn');
+  btn.addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light':'dark';
+    var next = cur === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('rtw-theme', next); } catch(e){}
+  });
+})();
+
+// ---- charts: verified numbers, rendered as accessible HTML bars ----
+function cssvar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+function horizontalBars(elId, rows, max, unit){
+  var el = document.getElementById(elId);
+  el.innerHTML = rows.map(function(r){
+    var pct = Math.max(2, (r.v / max) * 100);
+    return '<div class="bar-row">'
+      + '<span class="lbl">'+r.label+'</span>'
+      + '<div class="bar-track" title="'+r.label+': '+r.v+(unit||'')+'"><div class="bar-fill" style="width:'+pct+'%;background:'+r.color+'"></div></div>'
+      + '<span class="val" style="color:'+r.color+'">'+r.v+(unit||'')+'</span>'
+      + '</div>';
+  }).join('');
+}
+
+// Chart 1 — capability vs shaping (validation oracle@8, /50)
+horizontalBars('chartCapability', [
+  { label: 'SFT + GRPO', v: 20.3, color: cssvar('--s2') },
+  { label: 'SFT-only',   v: 11,   color: cssvar('--s2') },
+  { label: 'v0.12 legality', v: 6, color: cssvar('--s4') },
+  { label: 'v0.10 curriculum', v: 5, color: cssvar('--s4') },
+  { label: 'Stable-RTW',  v: 5.0,  color: cssvar('--s4') },
+  { label: 'base model',  v: 0,    color: cssvar('--muted') }
+], 50, '');
+
+// Chart 2 — loss decomposition at N=8 (% of 800 task-instances)
+horizontalBars('chartSelection', [
+  { label: 'no candidate', v: 91.25, color: cssvar('--s8') },
+  { label: 'solved',       v: 8.75,  color: cssvar('--s2') },
+  { label: 'mis-selected', v: 0,     color: cssvar('--muted') }
+], 100, '%');
+</script>
+</body>
+</html>

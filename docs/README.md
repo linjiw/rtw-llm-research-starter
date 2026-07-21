@@ -8,6 +8,7 @@ experiment rounds as needed.
 
 | doc | role |
 |---|---|
+| [RESEARCH_AGENDA_20260720.md](RESEARCH_AGENDA_20260720.md) | **latest consolidation**: built/learned/analyzed inventory + verified literature positioning (8 fields) + investigation questions + short/long-term goals |
 | [RESEARCH_GOAL_AND_PLANS_20260709.md](RESEARCH_GOAL_AND_PLANS_20260709.md) | consolidated goal + design/implementation/experiment/validation plans (post-v0.13) |
 | [NEXT_STEPS.md](NEXT_STEPS.md) | the current concrete plan: what runs now, what decision comes next |
 | [AUTORESEARCH_PROGRAM.md](AUTORESEARCH_PROGRAM.md) | the research operating system: goal, frozen protocol, metric, loop (with advisor checkpoints), prioritized queue |
@@ -15,7 +16,9 @@ experiment rounds as needed.
 | [STRATEGIC_REPIVOT_20260709.md](STRATEGIC_REPIVOT_20260709.md) | **current direction**: Paper 1 → shaping-vs-capability characterization; Paper 2 → agentic coding; kill list |
 | [BOTTLENECK_DIAGNOSIS_20260709.md](BOTTLENECK_DIAGNOSIS_20260709.md) | 5-lens diagnosis (verified): exact-rate is generation-bound, not selection; reward-shaping can't cross the wall |
 | [PAPER2_MICROCODE_TESTBED_SPEC.md](PAPER2_MICROCODE_TESTBED_SPEC.md) | recommended Paper-2 coding testbed (dense reward variance + live hacking surface) + framework fixes |
-| [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B and the paper-safe claim wording (pre-pivot; see STRATEGIC_REPIVOT for current) |
+| [PAPER2_FROZEN_PROTOCOL.md](PAPER2_FROZEN_PROTOCOL.md) | **frozen Paper-2 pre-registration**: dataset/task-IDs, sampling config, selector, teacher HONEST budget, E4/E5 arms + metrics; E5 knobs + sandbox gate deferred |
+| [PAPER_OUTLINE.md](PAPER_OUTLINE.md) | **Paper 1 outline (rewritten 2026-07-20)**: shaping-vs-capability characterization + three preconditions; claim architecture C1–C6, verified numbers, related-work positioning |
+| [CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md](CURRENT_PROJECT_STATUS_AND_PAPER_ASSESSMENT.md) | empirical arc v0.6b→v0.9B (pre-pivot snapshot; superseded header points to current framing) |
 
 ## Design docs (stable references)
 
@@ -23,10 +26,10 @@ experiment rounds as needed.
 |---|---|
 | [PROJECT_DESIGN.md](PROJECT_DESIGN.md) | research questions RQ1–RQ4, harness formalization, roadmap, failure modes |
 | [EXPERIMENT_PLAN.md](EXPERIMENT_PLAN.md) | original v0.5/v0.6 experiment design |
-| [PAPER_OUTLINE.md](PAPER_OUTLINE.md) | paper structure and claims |
-| [LITERATURE_POSITIONING.md](LITERATURE_POSITIONING.md) | related work positioning |
+| [LITERATURE_POSITIONING.md](LITERATURE_POSITIONING.md) | related work positioning (see RESEARCH_AGENDA_20260720.md Part 4 for the verified 8-field landscape) |
 | [NEXT_IDEAS.md](NEXT_IDEAS.md) | longer-horizon extensions (joint curricula, code harness, learned teacher) |
 | [DATASET_CARD.md](DATASET_CARD.md) | Countdown dataset card |
+| [DATASET_CARD_MICROCODE.md](DATASET_CARD_MICROCODE.md) | MicroCode (Paper-2) dataset card: splits, reward channels, teacher/curriculum wiring, sandbox-risk statement |
 | [HARDWARE_AND_INFRA.md](HARDWARE_AND_INFRA.md) | hardware notes (see also `outputs/STORAGE_LAYOUT.md`) |
 
 ## Experiment rounds (archival — plan → result → safe conclusion)

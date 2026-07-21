@@ -33,6 +33,12 @@ class Template:
     reference: Callable[..., Any]      # vetted ground-truth impl (positional args)
     sample_args: Callable[[random.Random], tuple]  # one random happy-path input
     edge_args: Callable[[random.Random], list[tuple]]  # adversarial/edge inputs
+    # Held-out-template split (I6): "train" templates are the training
+    # distribution; ood_* families are NEVER drawn by a train spec — they are
+    # the MicroCode analogue of Countdown's test_ood_* splits, used to measure
+    # construction/composition transfer. Trailing default so all existing
+    # positional Template(...) constructors stay untouched (all => "train").
+    family: str = "train"
 
 
 def _ref_double(x):
@@ -114,12 +120,121 @@ def _ref_run_length(nums):
     return out
 
 
+# ---- I6-b: additional train references (reach 4 per rung; pure, JSON-safe) ----
+# Serialization guardrails: return only ints/bools/None/list/dict-of-list — NEVER
+# a set (PYTHONHASHSEED-ordered, not JSON-serializable) or a tuple (JSONL round-
+# trips to a list, breaking ==). Never mutate the input arg.
+
+
+def _ref_square(x):
+    return x * x
+
+
+def _ref_first(xs):
+    return xs[0] if xs else None
+
+
+def _ref_min_two(a, b):
+    return a if a < b else b
+
+
+def _ref_count_even(nums):
+    return sum(1 for x in nums if x % 2 == 0)
+
+
+def _ref_max_list(nums):
+    return max(nums) if nums else None
+
+
+def _ref_prefix_sum(nums):
+    out, acc = [], 0
+    for x in nums:
+        acc += x
+        out.append(acc)
+    return out
+
+
+def _ref_running_min(nums):
+    out, m = [], None
+    for x in nums:
+        m = x if m is None else (x if x < m else m)
+        out.append(m)
+    return out
+
+
+def _ref_unique_sorted(nums):
+    # sorted(set(...)) materialized to a LIST (never return the set).
+    return sorted(set(nums))
+
+
+def _ref_group_by_sign(nums):
+    return {
+        "neg": [x for x in nums if x < 0],
+        "zero": [x for x in nums if x == 0],
+        "pos": [x for x in nums if x > 0],
+    }
+
+
+def _ref_is_sorted_asc(nums):
+    return all(nums[i] <= nums[i + 1] for i in range(len(nums) - 1))
+
+
+def _ref_merge_sorted(a, b):
+    out, i, j = [], 0, 0
+    while i < len(a) and j < len(b):
+        if a[i] <= b[j]:
+            out.append(a[i])
+            i += 1
+        else:
+            out.append(b[j])
+            j += 1
+    out.extend(a[i:])
+    out.extend(b[j:])
+    return out
+
+
+# ---- I6-c: OOD held-out references (never drawn by a train spec) ----
+# ood_compose = recombination of known train primitives; ood_transform = novel
+# output shapes. Same JSON-safe guardrails as train refs.
+
+
+def _ref_sum_pos_even(nums):
+    return sum(x for x in nums if x > 0 and x % 2 == 0)
+
+
+def _ref_count_in_range(nums, lo, hi):
+    return sum(1 for x in nums if lo <= x <= hi)
+
+
+def _ref_second_max(nums):
+    # second-LARGEST DISTINCT value, or None if fewer than 2 distinct.
+    distinct = sorted(set(nums), reverse=True)
+    return distinct[1] if len(distinct) >= 2 else None
+
+
+def _ref_pairwise_diff(nums):
+    return [nums[i + 1] - nums[i] for i in range(len(nums) - 1)]
+
+
+def _ref_is_palindrome_list(nums):
+    return nums == nums[::-1]
+
+
+def _ref_zip_sum(a, b):
+    n = min(len(a), len(b))
+    return [a[i] + b[i] for i in range(n)]
+
+
 def _rint(rng, lo=-9, hi=9):
     return rng.randint(lo, hi)
 
 
 def _rlist(rng, lo=0, hi=8):
     return [rng.randint(-9, 9) for _ in range(rng.randint(lo, hi))]
+
+
+def _rsorted(rng, lo=0, hi=6):
+    return sorted(_rlist(rng, lo, hi))
 
 
 TEMPLATES: list[Template] = [
@@ -174,6 +289,86 @@ TEMPLATES: list[Template] = [
              "pairs for consecutive equal elements.",
              _ref_run_length, lambda r: (_rlist(r, 2, 7),),
              lambda r: [([],), ([5],), ([1, 1, 2, 2, 2],), ([3, 3, 3],), ([1, 2, 1],)]),
+    # ---- I6-b: additional train templates (4 per rung) ----
+    Template("square", 0, "square_it", ["x"], "Return {p0} multiplied by itself.",
+             _ref_square, lambda r: (_rint(r),),
+             lambda r: [(0,), (1,), (-1,), (-7,), (9,)]),
+    Template("first", 0, "first_elem", ["xs"], "Return the first element of {p0}, or None if empty.",
+             _ref_first, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([7],), ([1, 2, 3],), ([-1, -2],), ([5, 5],)]),
+    Template("min_two", 1, "min_of_two", ["a", "b"], "Return the smaller of {p0} and {p1}.",
+             _ref_min_two, lambda r: (_rint(r), _rint(r)),
+             lambda r: [(5, 5), (-1, -9), (0, 3), (-4, 4), (8, 8)]),
+    Template("count_even", 2, "count_even", ["nums"],
+             "Return how many elements of {p0} are even.",
+             _ref_count_even, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([1, 3, 5],), ([-4, -2, 0],), ([0],), ([2, 2, 3],)]),
+    Template("max_list", 2, "max_of_list", ["nums"],
+             "Return the largest element of {p0}, or None if empty.",
+             _ref_max_list, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([5, 5, 5],), ([-1, -9, -3],), ([7],), ([2, 8, 8, 1],)]),
+    Template("prefix_sum", 3, "prefix_sums", ["nums"],
+             "Return the list of running cumulative sums of {p0}.",
+             _ref_prefix_sum, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([5],), ([1, -1, 2],), ([0, 0, 0],), ([-3, -4],)]),
+    Template("running_min", 3, "running_min", ["nums"],
+             "Return a list where position i is the min of {p0}[0..i].",
+             _ref_running_min, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([5],), ([3, 1, 2, 0],), ([1, 2, 3],), ([-1, -5, -2],)]),
+    Template("unique_sorted", 4, "unique_sorted", ["nums"],
+             "Return the distinct elements of {p0} sorted in ascending order.",
+             _ref_unique_sorted, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([2, 2, 2],), ([3, 1, 2, 1],), ([5, 4],), ([-1, -1, 0],)]),
+    Template("group_by_sign", 4, "group_by_sign", ["nums"],
+             "Return a dict with keys 'neg', 'zero', 'pos' mapping to the elements "
+             "of {p0} of that sign, in order.",
+             _ref_group_by_sign, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([0, 0],), ([-1, -2],), ([1, 2],), ([-1, 0, 3],)]),
+    Template("is_sorted", 5, "is_sorted_asc", ["nums"],
+             "Return True if {p0} is non-decreasing (each element <= the next), else False.",
+             _ref_is_sorted_asc, lambda r: (_rsorted(r, 1, 6),),
+             lambda r: [([],), ([5],), ([1, 1, 2],), ([1, 3, 2],), ([3, 2, 1],), ([2, 2, 2],)]),
+    Template("merge_sorted", 5, "merge_sorted", ["a", "b"],
+             "Given two ascending lists {p0} and {p1}, return their merged ascending list.",
+             _ref_merge_sorted, lambda r: (_rsorted(r, 1, 5), _rsorted(r, 1, 5)),
+             lambda r: [([], []), ([], [1, 2]), ([1, 2], []), ([1, 1], [1, 1]), ([1, 3, 5], [2, 4])]),
+    # ---- I6-c: OOD held-out families (never sampled by a train spec) ----
+    # ood_compose: recombination of known train primitives.
+    Template("sum_pos_even", 3, "sum_pos_even", ["nums"],
+             "Return the sum of elements of {p0} that are both strictly positive and even.",
+             _ref_sum_pos_even, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([1, 3, 5],), ([-2, -4],), ([0, 2, 4],), ([2, -2, 3, 6],)],
+             family="ood_compose"),
+    Template("count_in_range", 3, "count_in_range", ["nums", "lo", "hi"],
+             "Return how many elements of {p0} satisfy {p1} <= x <= {p2} (inclusive).",
+             _ref_count_in_range,
+             lambda r: (_rlist(r, 1, 7), _rint(r, -5, 0), _rint(r, 0, 5)),
+             lambda r: [([], 0, 5), ([1, 2, 3], 3, 1), ([-3, 0, 3], -3, 3), ([5, 5], 5, 5), ([9, -9], -1, 1)],
+             family="ood_compose"),
+    Template("second_max", 4, "second_largest", ["nums"],
+             "Return the second-largest DISTINCT value in {p0}, or None if fewer "
+             "than 2 distinct values.",
+             _ref_second_max, lambda r: (_rlist(r, 2, 7),),
+             lambda r: [([],), ([5],), ([3, 3, 3],), ([1, 2, 2],), ([-1, -5, -1],)],
+             family="ood_compose"),
+    # ood_transform: novel output shapes not present in the train families.
+    Template("pairwise_diff", 3, "pairwise_diff", ["nums"],
+             "Return the list of consecutive differences of {p0} "
+             "(element i+1 minus element i); length is len({p0}) - 1.",
+             _ref_pairwise_diff, lambda r: (_rlist(r, 1, 7),),
+             lambda r: [([],), ([5],), ([1, 2, 3],), ([3, 3, 3],), ([-1, -4, 2],)],
+             family="ood_transform"),
+    Template("is_palindrome", 4, "is_palindrome_list", ["nums"],
+             "Return True if {p0} reads the same forwards and backwards, else False.",
+             _ref_is_palindrome_list, lambda r: (_rlist(r, 1, 6),),
+             lambda r: [([],), ([7],), ([1, 2, 1],), ([1, 2, 2, 1],), ([1, 2, 3],)],
+             family="ood_transform"),
+    Template("zip_sum", 5, "zip_sum", ["a", "b"],
+             "Return the element-wise sum of {p0} and {p1}, truncated to the "
+             "length of the shorter list.",
+             _ref_zip_sum, lambda r: (_rlist(r, 1, 5), _rlist(r, 1, 5)),
+             lambda r: [([], []), ([], [1]), ([1, 2], []), ([1, 2, 3], [4, 5]), ([-1, 1], [1, -1])],
+             family="ood_transform"),
 ]
 
 TEMPLATES_BY_RUNG: dict[int, list[Template]] = {}
@@ -182,18 +377,43 @@ for _t in TEMPLATES:
 
 
 def difficulty_spec(difficulty: str) -> dict[str, Any]:
-    """Map a tier label to the rungs it draws from + test-count knobs."""
+    """Map a tier label to the rungs it draws from + test-count knobs.
+
+    Train tiers (easy/medium/hard) draw only from the "train" template family
+    (families=("train",)); this keeps the sampled distribution byte-identical to
+    the pre-family generator. OOD tiers draw only their held-out family.
+    """
     rungs = [r for r, tier in RUNG_TIER.items() if tier == difficulty]
-    if not rungs:
-        raise ValueError(f"unknown difficulty {difficulty!r}")
-    return {"difficulty": difficulty, "rungs": rungs, "n_visible": 2, "n_held_out": 5}
+    if rungs:
+        return {"difficulty": difficulty, "rungs": rungs, "families": ("train",),
+                "n_visible": 2, "n_held_out": 5}
+    # OOD tiers draw ONLY their held-out family (never "train"); rungs are the
+    # family's own rungs (explicit, not RUNG_TIER-derived). These are the
+    # MicroCode analogue of Countdown's test_ood_* splits.
+    if difficulty in _OOD_SPECS:
+        return {"difficulty": difficulty, **_OOD_SPECS[difficulty],
+                "n_visible": 2, "n_held_out": 5}
+    raise ValueError(f"unknown difficulty {difficulty!r}")
+
+
+_OOD_SPECS: dict[str, dict[str, Any]] = {
+    "ood_compose": {"rungs": [3, 4], "families": ("ood_compose",)},
+    "ood_transform": {"rungs": [3, 4, 5], "families": ("ood_transform",)},
+}
+
+
+def _template_pool(spec: dict[str, Any]) -> list[Template]:
+    """Templates a spec may sample: rung ∈ spec['rungs'] AND family ∈ spec's
+    families (default ('train',), so an un-migrated spec never pulls ood)."""
+    fams = set(spec.get("families", ("train",)))
+    return [t for r in spec["rungs"] for t in TEMPLATES_BY_RUNG[r] if t.family in fams]
 
 
 _NAME_POOL = ["solve", "compute", "run", "process", "handle", "apply", "fn", "task"]
 
 
 def random_solvable_task(rng: random.Random, spec: dict[str, Any], idx: int, split: str) -> dict[str, Any]:
-    tmpl = rng.choice([t for r in spec["rungs"] for t in TEMPLATES_BY_RUNG[r]])
+    tmpl = rng.choice(_template_pool(spec))
     # Randomize the function name (anti template-identity-memorization); keep
     # param names stable (they carry the docstring's meaning).
     fn_name = f"{rng.choice(_NAME_POOL)}_{tmpl.key}_{rng.randint(0, 999)}"

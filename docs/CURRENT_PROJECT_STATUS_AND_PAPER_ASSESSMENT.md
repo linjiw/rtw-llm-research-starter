@@ -1,5 +1,22 @@
 # Current Project Status and Paper Assessment
 
+> **⚠️ SUPERSEDED HEADER (2026-07-20).** The body below is the **pre-pivot
+> v0.9B snapshot** (2026-07-08) and is retained for the empirical arc v0.6b→v0.9B
+> only. The paper-safe claim wording in it is **obsolete**. Current framing
+> (resolved to **option b**): Paper 1 is a **shaping-vs-capability
+> characterization** built on three adaptivity preconditions — see
+> `PAPER_OUTLINE.md` (rewritten 2026-07-20) and `RESEARCH_AGENDA_20260720.md`.
+> Headline facts that changed since this snapshot: the v0.9B Stable-vs-static
+> *exactness* edge did NOT reproduce on the TRL 1.7 stack (3-seed p=0.34/0.63;
+> only **cost 0.58×** survives); inference-time **selection saturates** (60/60
+> banks); **two shaping strikes** (v0.10, v0.12) moved intermediates not success;
+> an **SFT capability lever** moved held-out exact ~4.1–4.5× (3 seeds); the
+> adaptive controller is **structurally inert** on Countdown (three preconditions
+> fail), confirmed controller-independent by the S5 oracle analysis. Do NOT quote
+> the "Stable-RTW best-of-N advantage" wording below as a current claim.
+
+---
+
 Snapshot time: `2026-07-08T15:19:37-04:00`
 
 Repository: `/home/robotixx/rtw-llm-research-starter`

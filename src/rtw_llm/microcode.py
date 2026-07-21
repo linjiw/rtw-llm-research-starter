@@ -155,6 +155,20 @@ class MicroVerificationResult:
     expression: str = ""
     error: str | None = None
 
+    # Compat with the task-agnostic RTWRewardManager log records + oracle eval,
+    # which read `.value` and `.correct` off the VerificationResult contract
+    # (countdown.VerificationResult exposes both). MicroCode has no scalar
+    # "value" (the held-out suite is the truth), so `.value` surfaces the
+    # held-out pass rate for logging; `.correct` mirrors the primary
+    # (held_out_all_pass). Additive — does not change to_components.
+    @property
+    def value(self) -> float:
+        return float(self.held_out_pass_rate)
+
+    @property
+    def correct(self) -> bool:
+        return bool(self.held_out_all_pass)
+
     def to_components(self, max_chars: int = 600) -> dict[str, float]:
         legal = float(self.parses and self.imports_safe and self.names_safe and self.defines_target)
         brevity = 1.0 if len(self.expression) <= max_chars else 0.0
@@ -208,7 +222,24 @@ def _no_hardcoding_score(fn_src: str, visible_cases: list) -> float:
     return max(0.0, 1.0 - smells / denom)
 
 
-def verify_completion(completion: str, example: dict[str, Any]) -> MicroVerificationResult:
+def verify_completion(
+    completion: str, example: dict[str, Any], sandbox: str = "inprocess"
+) -> MicroVerificationResult:
+    """Grade a completion against the held-out suite.
+
+    sandbox="inprocess" (default) runs test cases in-process — byte-identical to
+    the prototype, for the deterministic CPU test/repro suite. sandbox="worker"
+    runs them in a hardened spawned worker (memory wall + parent-crash isolation)
+    — use for any GPU GRPO run where model code executes (E4/E5). See
+    docs/S3_SANDBOX_HARDENING_PLAN.md.
+    """
+    if sandbox == "worker":
+        from .microcode_sandbox import run_one_worker
+        run = run_one_worker
+    elif sandbox == "inprocess":
+        run = _run_one
+    else:
+        raise ValueError(f"unknown sandbox mode {sandbox!r}")
     fn_name = example["fn_name"]
     visible = example["visible_tests"]      # list[(args_tuple, expected)]
     held_out = example["held_out_tests"]    # list[(args_tuple, expected)]
@@ -229,8 +260,8 @@ def verify_completion(completion: str, example: dict[str, Any]) -> MicroVerifica
             held_out_pass_rate=0.0, runs_without_error_rate=0.0, held_out_all_pass=False,
             no_hardcoding=0.0, expression=fn_src[:600], error="illegal code",
         )
-    vis = [_run_one(fn_src, fn_name, a, e) for a, e in visible]
-    hel = [_run_one(fn_src, fn_name, a, e) for a, e in held_out]
+    vis = [run(fn_src, fn_name, a, e) for a, e in visible]
+    hel = [run(fn_src, fn_name, a, e) for a, e in held_out]
     ran = vis + hel
     runs_rate = sum(1 for r, _ in ran if r) / max(len(ran), 1)
     vis_pass = sum(1 for _, c in vis if c) / max(len(vis), 1)
@@ -241,6 +272,28 @@ def verify_completion(completion: str, example: dict[str, Any]) -> MicroVerifica
         runs_without_error_rate=runs_rate, held_out_all_pass=(hel_pass == 1.0),
         no_hardcoding=_no_hardcoding_score(fn_src, visible), expression=fn_src[:600],
     )
+
+
+# Frozen Paper-2 selector (I10). The best-of-N practical selector may use ONLY
+# deployment-observable, non-truth features. held_out_pass_rate / correct /
+# exact_correct are the researcher's HIDDEN ground truth and must NEVER enter
+# selection (mirrors the Countdown practical_score invariant). visible_pass_rate
+# IS included: it is the realistic signal a real deployment selector has, and
+# the analysis separates proxy-selection from held-out truth afterward. The
+# no_hardcoding term counterweights visible-test overfitting. Weights are frozen
+# here and pre-registered in docs/PAPER2_FROZEN_PROTOCOL.md.
+MICRO_SELECTOR_WEIGHTS = {
+    "valid_expression": 3.0,
+    "runs_without_error": 1.0,
+    "visible_pass_rate": 2.0,
+    "no_hardcoding_heuristic": 1.0,
+}
+_MICRO_SELECTOR_FORBIDDEN = ("held_out_pass_rate", "correct", "exact_correct")
+
+
+def microcode_practical_score(components: dict[str, float]) -> float:
+    """Frozen legality/proxy-feature selector; provably never reads truth."""
+    return sum(w * float(components.get(k, 0.0)) for k, w in MICRO_SELECTOR_WEIGHTS.items())
 
 
 def score_completion(
