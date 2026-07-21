@@ -1,5 +1,52 @@
 # Next Steps
 
+Updated: 2026-07-21 (post-merge unified state; v0.19 production seed-0 chain
+LAUNCHED). Governing protocol: `AUTORESEARCH_PROGRAM.md`; results land in
+`EXPERIMENT_LEDGER.md`; consolidated agenda: `RESEARCH_AGENDA_20260720.md`.
+
+## ACTIVE: v0.19 within-v2 baseline reset — production seed 0 RUNNING
+
+The two parallel work-lines merged 2026-07-21 (`817e4ec`). The v0.14–v0.16
+audits made every legacy-v1 number exploratory, so the corrected-v2 rerun is
+now the top priority; it directly re-tests Paper-1's C2/C3/C5 under true seeds
++ leakage-free data.
+
+- Environment lock + launch record committed (`f437bc1`): host
+  aws-us-east-1-g5.2xlarge (single A10G), $1.212/GPU-h, caps 60 GPU-h/$150.
+  `validate_production_gate` PASSES on this checkout.
+- Chain launched via `scripts/run_v19_seed0_chain.sh` (nohup): waits for the
+  shared GPU (another tenant's sweep, ~2h), then
+  `train_seed 0 → eval_dev → score_dev`, fail-closed, logs to
+  `outputs/v19/logs/seed0_chain.log`.
+- After the dev gate: seeds 1/2 (`--stage train_seed --seed 1/2 --execute`),
+  then `prepare_confirm` (commit readiness), then ONE confirm pass. Never touch
+  confirm400 before the committed readiness record; final test stays sealed.
+- Budget estimate: seed-0 ≈ 8 GPU-h (5 trainings + 6 dev banks); full panel +
+  confirm ≈ 30–40 GPU-h — inside the cap.
+
+## THEN: MicroCode E4 pilot (Paper-2, pre-registered)
+
+Queued AFTER v19 completes (one A10G, v19 has priority). Everything is built
+and frozen (`PAPER2_FROZEN_PROTOCOL.md`): dataset + frozen IDs committed,
+teacher tables (MICRO_AUX_KEYS + HONEST floors), hardened sandbox
+(`sandbox="worker"` ON for GPU runs), 258 tests green. Remaining at launch:
+the MicroCode best-of-N runner (script 32; reuse 07's task-agnostic helpers,
+never edit 07) + a smoke run + advisor diff review.
+
+## Paper-1 status
+
+Outline rewritten around the shaping-vs-capability characterization (option b)
+with a PROTOCOL GATE header: legacy C1–C6 magnitudes are exploratory until
+re-established on v2 (the v19 matrix does exactly this). The structural
+contributions survive on their own terms: the three adaptivity preconditions,
+the S5 oracle primary-dominance bound (controller-independent), and the
+selection-saturation mechanics.
+
+---
+
+# ARCHIVED (pre-merge planning below; superseded by the section above)
+
+
 Updated: 2026-07-10 (after the v0.19 production handoff audit). This is the
 concrete execution plan; the governing protocol is `AUTORESEARCH_PROGRAM.md`,
 results land in `EXPERIMENT_LEDGER.md`.
