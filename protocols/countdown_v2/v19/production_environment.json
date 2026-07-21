@@ -1,0 +1,65 @@
+{
+  "container_image_digest": null,
+  "lock_sha256": "ba7679a1b5a597af5c3a00aeb6dbd5bcbf4a43ad425712195c918ecb8b07bd12",
+  "protocol_id": "countdown-v19-within-v2-reset-v1",
+  "protocol_manifest": {
+    "line_count": 1,
+    "sha256": "915260b2051f50e25b4f00da3645166f5a8ce1eaf74c0ba8ea348122a5fa6a2b",
+    "size": 9481
+  },
+  "required_topology": {
+    "visible_cuda_devices": 1,
+    "world_size": 1
+  },
+  "runtime": {
+    "execution": {
+      "cuda_matmul_allow_tf32": false,
+      "cudnn_allow_tf32": true,
+      "cudnn_benchmark": false,
+      "cudnn_deterministic": false,
+      "deterministic_algorithms": false,
+      "deterministic_warn_only": false,
+      "float32_matmul_precision": "highest",
+      "local_rank": 0,
+      "precision_environment": {
+        "CUBLAS_WORKSPACE_CONFIG": null,
+        "CUDA_VISIBLE_DEVICES": null,
+        "NVIDIA_TF32_OVERRIDE": null,
+        "PYTORCH_CUDA_ALLOC_CONF": null
+      },
+      "rank": 0,
+      "torch_num_interop_threads": 8,
+      "torch_num_threads": 4,
+      "world_size": 1
+    },
+    "hardware": {
+      "cuda_available": true,
+      "cuda_device_count": 1,
+      "cuda_devices": [
+        "NVIDIA A10G"
+      ],
+      "cuda_version": "13.0",
+      "cudnn_version": 91900,
+      "machine": "x86_64",
+      "mps_available": false,
+      "nvidia_driver_versions": [
+        "595.71.05"
+      ],
+      "processor": "x86_64"
+    },
+    "packages": {
+      "accelerate": "1.14.0",
+      "datasets": "5.0.0",
+      "numpy": "2.2.6",
+      "peft": "0.19.1",
+      "safetensors": "0.8.0",
+      "tokenizers": "0.22.2",
+      "torch": "2.11.0",
+      "transformers": "5.12.1",
+      "trl": "1.7.0"
+    },
+    "platform": "Linux-6.12.92-122.166.amzn2023.x86_64-x86_64-with-glibc2.34",
+    "python": "3.10.20"
+  },
+  "schema_version": "countdown-v19-production-environment-v1"
+}

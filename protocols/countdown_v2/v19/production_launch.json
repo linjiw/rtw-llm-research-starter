@@ -1,0 +1,20 @@
+{
+  "approved_host_label": "aws-us-east-1-g5.2xlarge-i-046fa664a06d60e7e",
+  "environment_lock": {
+    "line_count": 65,
+    "sha256": "104a74befde12a85aef2efc84e99482453e1d079af15d30c898549c750e3d543",
+    "size": 1828
+  },
+  "human_approval": true,
+  "max_cost_usd": 150,
+  "max_single_gpu_hours": 60,
+  "protocol_id": "countdown-v19-within-v2-reset-v1",
+  "protocol_manifest": {
+    "line_count": 1,
+    "sha256": "915260b2051f50e25b4f00da3645166f5a8ce1eaf74c0ba8ea348122a5fa6a2b",
+    "size": 9481
+  },
+  "record_sha256": "2e48a2d9a01607442d71e6c79ba580655b4d527b584479aa1d677fc4e98dc0b1",
+  "schema_version": "countdown-v19-production-launch-v1",
+  "usd_per_gpu_hour": 1.212
+}
