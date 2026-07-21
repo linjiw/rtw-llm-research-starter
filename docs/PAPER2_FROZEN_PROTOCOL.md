@@ -11,7 +11,7 @@ Grounding: `PAPER2_MICROCODE_TESTBED_SPEC.md` (design), `DATASET_CARD_MICROCODE.
 ## Frozen — dataset & task IDs
 
 - Dataset committed under `data/microcode/` by
-  `scripts/20_generate_microcode_dataset.py` (seed 42): train 1998,
+  `scripts/30_generate_microcode_dataset.py` (seed 42): train 1998,
   validation 201, test_in_dist 201, test_ood_compose 200, test_ood_transform 200.
 - Frozen eval task IDs (50/split, tier-balanced, deterministic):
   `data/microcode/frozen_microcode_task_ids_{validation,test_in_dist}_limit50.txt`.
@@ -47,7 +47,7 @@ generation mode  loop-mode ONLY for protocol comparisons (batched = exploratory)
 ## Frozen — teacher aux set & HONEST budget (E4)
 
 - `MICRO_AUX_KEYS = [valid_expression, runs_without_error, visible_pass_rate,
-  no_hardcoding_heuristic]` (finalized by `scripts/22_microcode_aux_prune.py`;
+  no_hardcoding_heuristic]` (finalized by `scripts/31_microcode_aux_prune.py`;
   scaffold/collinear channels pruned; `held_out_pass_rate` is diagnostic-only,
   never a weighted wheel).
 - HONEST floors `MICRO_STABLE_FLOORS` (visible_pass_rate floor 0.05 < the ~0.295

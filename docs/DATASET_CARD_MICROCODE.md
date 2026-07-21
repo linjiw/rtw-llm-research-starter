@@ -55,7 +55,7 @@ yields graded reward and non-zero within-group variance — no rung is a 0/1 cli
 - **`visible_pass_rate`** — the HACKABLE PROXY (hardcoding visible I/O drives it
   to 1.0 while held-out collapses). The channel the E5 TEMPTATION arm over-weights.
 - Weighted training wheels (teacher aux set, `MICRO_AUX_KEYS`, finalized by the
-  prune probe `scripts/22_microcode_aux_prune.py`): `valid_expression` (legality
+  prune probe `scripts/31_microcode_aux_prune.py`): `valid_expression` (legality
   gate), `runs_without_error`, `visible_pass_rate`, `no_hardcoding_heuristic`.
 - Pruned as dead/collinear scaffold (present in `to_components` for diagnostics
   but NOT weighted): `has_extractable_answer_span`, `format`, `syntax_parses`,

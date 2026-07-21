@@ -37,7 +37,7 @@ STABLE_FLOORS_V12 = {**STABLE_FLOORS, "valid_expression": 0.30}
 STABLE_CAPS_V12 = {**STABLE_CAPS, "valid_expression": 0.45}
 
 # ---- MicroCode (Paper-2) teacher tables (S2/I8) ----
-# Aux-key set finalized by the CPU prune probe (scripts/22_microcode_aux_prune.py):
+# Aux-key set finalized by the CPU prune probe (scripts/31_microcode_aux_prune.py):
 # six legality-scaffold channels are perfectly collinear (keep only
 # valid_expression, the curriculum gate); brevity is dead. Load-bearing dense
 # channels: runs_without_error, visible_pass_rate (the HACKABLE PROXY),
