@@ -1,5 +1,20 @@
 # Paper 1 outline — shaping-vs-capability characterization (rewritten 2026-07-20)
 
+> **⚠ PROTOCOL GATE (2026-07-21, post-merge reconciliation).** A parallel
+> session's audits (v0.14–v0.16) found that all legacy Countdown runs are
+> `countdown-legacy-v1`: historical `--seed N` varied the teacher seed but NOT
+> the trainer loop (TRL default 42) or LoRA init, and the legacy dataset has
+> cross-split leakage (train↔val 40, train↔test 35 exact-key groups; frozen-ID
+> exposure 9/50 val, 6/50 test). **Every quantitative claim below (C1–C6) is
+> therefore EXPLORATORY until re-established under the corrected `countdown-v2`
+> dataset + true-seed protocol** (`countdown-v19-within-v2-reset-v1`, frozen and
+> audit-ELIGIBLE; see `V19_CUDA_PRODUCTION_RUNBOOK.md`). The v19 matrix
+> (base + SFT-only + GRPO±SFT × static/stable × 3 true seeds) directly re-tests
+> C2/C3/C5; C1/C4's *structural* arguments (selection saturation mechanics,
+> primary-dominance oracle bound, preconditions) are data-independent in form
+> but their magnitudes must be re-measured on v2 banks. Do not submit the paper
+> on legacy numbers.
+
 **This supersedes the pre-pivot "Stable-RTW method-win" outline** (archived in
 git history at/ before commit `85c24a4`). Framing decision: **option (b)** —
 recenter on the shaping-vs-capability characterization + generation-bottleneck
